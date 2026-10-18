@@ -5,17 +5,17 @@ Design de référence (ne pas le modifier visuellement) : `/Users/ahmedbt/Deskto
 
 ## Règles générales
 
-- Backend : NestJS 11 dans `api/`. Frontend : React 19 + Vite 8 + Tailwind v4 dans `web/`.
-- Préfixe API : `/api`. En dev, Vite proxifie `/api` vers `http://localhost:3000`. En prod, Nest sert `web/dist` et renvoie `index.html` pour toute route hors `/api`.
+- Application unique : Next.js 16 (App Router) à la racine. API : route handlers `app/api/[...path]/route.ts` branchés sur un dispatcher (`server/http/router.ts`). Écrans : React 19 + react-router + Tailwind v4 dans `client/`, montés par la page catch-all `app/[[...slug]]`. Temps réel : Socket.IO sur `/api/socket.io`, attaché au serveur HTTP de `server.ts`.
+- Préfixe API : `/api`. Un seul port (3000 par défaut) : Next.js sert l'application (shell `index.html` pour toute route hors `/api`) et les routes API.
 - Montants : nombres décimaux (2 décimales) côté JSON. Dates : ISO `YYYY-MM-DD` ou ISO complet.
 - Erreurs : `{ "statusCode": number, "message": string | string[], "error": string }` (format Nest standard). Messages en anglais (comme le design).
 - Données personnelles : jamais dans les logs, jamais en clair dans le stockage navigateur (seul le jeton de session peut être dans `localStorage`, clé `saviny.token`).
 - Mots de passe : `crypto.scrypt` (node:crypto), jamais en clair, jamais renvoyés.
 - Jetons de session : jeton opaque aléatoire (32 octets, base64url) envoyé en `Authorization: Bearer <token>`. Côté serveur on ne stocke que son SHA-256. Déconnexion = révocation.
 - Droits : chaque ressource est filtrée par `userId` ; un utilisateur ne voit ni ne modifie les données d'un autre (404 si ressource non trouvée pour lui). Modération : rôle `moderator` (utilisateurs listés dans la variable d'env `MODERATOR_EMAILS`).
-- Persistance v1 : fichier JSON `api/data/db.json` (écriture atomique : fichier temporaire puis `rename`). Le dossier `data/` est dans `.gitignore`. Ne jamais supprimer ce fichier automatiquement.
+- Persistance : SQLite dans `data/saviny.db` (variable `DATABASE_FILE`), pièces jointes dans `data/media` (variable `MEDIA_DIR`). Le dossier `data/` est dans `.gitignore`. Ne jamais supprimer ces fichiers automatiquement.
 - Seed démo : si `SEED_DEMO=true`, création au démarrage de l'utilisateur `alex.morgan@example.com` / mot de passe `saviny-demo` avec des données qui reproduisent exactement le design (comptes, transactions, budgets, objectifs, annonces, discussions). Ne rien seed sinon.
-- Sécurité HTTP : `helmet`, `ValidationPipe` (whitelist, forbidNonWhitelisted, transform), CORS restreint (`CORS_ORIGIN`, défaut `http://localhost:5173`), rate limit (`@nestjs/throttler`) sur `/api/auth/*`.
+- Sécurité HTTP : en-têtes (`nosniff`, `SAMEORIGIN`, `Referrer-Policy`), validation `zod` stricte (clés inconnues refusées, 400 sinon), CORS restreint (`CORS_ORIGIN`, défaut `http://localhost:5173`), rate limit en mémoire sur `/api/auth/*` (10/min inscription, 5/min connexion) et global (300/min par adresse).
 
 ## Endpoints
 
