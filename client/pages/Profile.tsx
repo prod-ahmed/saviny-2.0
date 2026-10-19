@@ -6,6 +6,7 @@ import { api } from "../lib/api";
 import { longDate } from "../lib/format";
 import { useSession } from "../lib/hooks";
 import type { Currency, User } from "../lib/types";
+import { THEMES, saveTheme, storedTheme, type Theme } from "../lib/theme";
 
 export function Profile() {
   const { user, refresh } = useSession();
@@ -101,6 +102,7 @@ export function Settings() {
   const [busy, setBusy] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [theme, setTheme] = useState<Theme>(storedTheme);
 
   useEffect(() => {
     if (!user) return;
@@ -175,6 +177,17 @@ export function Settings() {
           </>}
 
           {tab === "Display & currency" && <>
+            <h3>Appearance</h3>
+            <p>Choose the palette for this device. Dark mode keeps the same layout.</p>
+            <div className="theme-options" role="group" aria-label="Appearance">
+              {THEMES.map((t) => (
+                <button key={t.value} className={`theme-option${theme === t.value ? " active" : ""}`} aria-pressed={theme === t.value}
+                  onClick={() => { setTheme(t.value); saveTheme(t.value); }}>
+                  <strong>{t.label}</strong>
+                  <small>{t.text}</small>
+                </button>
+              ))}
+            </div>
             <h3>Display &amp; currency</h3>
             <p>Amounts across Saviny are shown in this currency.</p>
             <label>Currency</label>
