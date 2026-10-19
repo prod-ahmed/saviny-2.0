@@ -56,7 +56,7 @@ const NOTIFICATION_COLUMNS: Record<string, string> = {
 
 const findUser = (id: string): Row => context().db.prepare("SELECT * FROM users WHERE id = ?").get(id) as Row;
 
-function openSession(userId: string): string {
+export function openSession(userId: string): string {
   const token = newToken();
   context().db.prepare("INSERT INTO sessions (token_hash, user_id, created_at) VALUES (?, ?, ?)").run(sha256(token), userId, nowIso());
   return token;

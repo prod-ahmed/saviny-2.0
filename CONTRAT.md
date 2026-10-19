@@ -111,3 +111,24 @@ Design de référence (ne pas le modifier visuellement) : `/Users/ahmedbt/Deskto
 - Installable : `manifest.webmanifest` (name `Saviny`, short_name `Saviny`, theme `#102a29`, background `#f6f8f7`, display `standalone`, icônes 192/512 générées depuis `public/assets/saviny-logo.png`).
 - Service worker : met en cache le shell (HTML, JS, CSS, logo, manifest) et uniquement les réponses publiques de lecture (`/api/community/rules`, `/api/posts` et `/api/community/trending`). **Jamais** les données personnelles (comptes, transactions, budgets, objectifs, messages, notifications). Hors ligne : écran "Offline" et écritures désactivées avec le message "Connection required — nothing was saved".
 - Un bandeau indique l'état réseau réel (`navigator.onLine` + événements `online`/`offline`).
+
+## Connexion Google et GitHub
+
+- `GET /api/auth/providers` → `{ google: boolean, github: boolean }` : un bouton n'est affiché que si le fournisseur est configuré.
+- `GET /api/auth/oauth/:provider/start` (`google` ou `github`) → redirection vers le fournisseur avec un `state` à usage unique (10 min).
+- `GET /api/auth/oauth/:provider/callback` → crée ou retrouve le compte, puis redirige vers `/login?oauth=<code>`. Le code est à usage unique et expire en 2 min. En cas d'échec : `/login?oauth_error=oauth_denied | oauth_unverified | oauth_failed | oauth_unavailable`.
+- `POST /api/auth/oauth/exchange` `{ code }` → `{ token, user }`. Le jeton de session n'apparaît jamais dans une URL.
+- Un compte est retrouvé par identité fournisseur, puis par e-mail **vérifié** (Google `email_verified`, GitHub e-mail principal et vérifié). Sinon un nouveau compte est créé, sans mot de passe utilisable.
+
+Variables d'environnement :
+
+| Variable | Rôle |
+|---|---|
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | identifiants de l'application OAuth Google |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | identifiants de l'application OAuth GitHub |
+| `PUBLIC_URL` | origine publique de l'application (défaut `http://localhost:3000`) |
+
+URL de redirection à enregistrer chez chaque fournisseur :
+
+- Google : `${PUBLIC_URL}/api/auth/oauth/google/callback`
+- GitHub : `${PUBLIC_URL}/api/auth/oauth/github/callback`

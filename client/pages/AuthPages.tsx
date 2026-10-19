@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import { FormError } from "../components/ui";
 import { api, setToken } from "../lib/api";
@@ -30,11 +30,64 @@ function AuthLayout({ eyebrow, title, description, children }: { eyebrow: string
   );
 }
 
+const OAUTH_MESSAGES: Record<string, string> = {
+  oauth_denied: "Sign-in was cancelled.",
+  oauth_unverified: "That account has no verified email address, so it cannot be used to sign in.",
+  oauth_failed: "Sign-in could not be completed. Please try again.",
+  oauth_unavailable: "This sign-in option is not available yet.",
+};
+
+/** Google and GitHub buttons. Only the providers that have credentials on the server are shown. */
+function OAuthButtons() {
+  const [providers, setProviders] = useState<{ google: boolean; github: boolean } | null>(null);
+
+  useEffect(() => {
+    api<{ google: boolean; github: boolean }>("/auth/providers")
+      .then(setProviders)
+      .catch(() => setProviders({ google: false, github: false }));
+  }, []);
+
+  if (!providers || (!providers.google && !providers.github)) return null;
+  return (
+    <div className="oauth-buttons">
+      <span className="oauth-divider">or continue with</span>
+      {providers.google && <a className="secondary oauth-button" href="/api/auth/oauth/google/start">Continue with Google</a>}
+      {providers.github && <a className="secondary oauth-button" href="/api/auth/oauth/github/start">Continue with GitHub</a>}
+    </div>
+  );
+}
+
 export function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const returned = useRef(false);
+
+  // Back from Google or GitHub: the redirect carries a one-time code (or a failure reason), never the session.
+  useEffect(() => {
+    if (returned.current) return;
+    returned.current = true;
+    const params = new URLSearchParams(window.location.search);
+    const failure = params.get("oauth_error");
+    const code = params.get("oauth");
+    if (!failure && !code) return;
+    window.history.replaceState(null, "", "/login");
+    if (failure) {
+      setError(OAUTH_MESSAGES[failure] ?? OAUTH_MESSAGES.oauth_failed);
+      return;
+    }
+    setBusy(true);
+    api<AuthResult>("/auth/oauth/exchange", { method: "POST", json: { code } })
+      .then((result) => {
+        setToken(result.token);
+        window.location.assign("/dashboard");
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : OAUTH_MESSAGES.oauth_failed);
+        setBusy(false);
+      });
+  }, []);
 
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -58,6 +111,7 @@ export function Login() {
         <FormError message={error} />
         <button className="primary auth-submit" disabled={busy}>{busy ? "Logging in…" : "Log in securely"}</button>
       </form>
+      <OAuthButtons />
       <p className="auth-foot">
         <Link to="/forgot-password">Forgot password?</Link>
       </p>
@@ -100,6 +154,7 @@ export function Register() {
         <FormError message={error} />
         <button className="primary auth-submit" disabled={busy}>{busy ? "Creating account…" : "Create account"}</button>
       </form>
+      <OAuthButtons />
       <p className="auth-foot">Already have an account? <Link to="/login">Log in</Link></p>
     </AuthLayout>
   );
