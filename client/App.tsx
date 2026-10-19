@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import Accounts from "./pages/Accounts";
+import Landing from "./pages/Landing";
 import Bills from "./pages/Bills";
 import Budgets from "./pages/Budgets";
 import Community from "./pages/Community";
@@ -109,6 +110,12 @@ export default function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
       </Routes>
     );
+  }
+
+  // The landing page is for visitors; members go straight to their dashboard.
+  if (location.pathname === "/") {
+    if (!session.ready) return <p className="state-text">Loading…</p>;
+    return session.user ? <Navigate to="/dashboard" replace /> : <Landing />;
   }
 
   if (!session.ready) return <p className="state-text">Loading…</p>;
