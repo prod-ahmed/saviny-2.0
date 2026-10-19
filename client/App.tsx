@@ -22,6 +22,7 @@ import type { AppNotification } from "./lib/types";
 
 const NAV: { label: string; path: string; icon: IconName }[] = [
   { label: "Dashboard", path: "/dashboard", icon: "grid" },
+  { label: "Accounts", path: "/accounts", icon: "wallet" },
   { label: "Transactions", path: "/transactions", icon: "swap" },
   { label: "Budget Management", path: "/budgets", icon: "budget" },
   { label: "Savings Goals", path: "/goals", icon: "target" },
