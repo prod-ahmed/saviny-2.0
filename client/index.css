@@ -543,4 +543,4 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 /* Google and GitHub sign-in */
 .oauth-buttons { display: grid; gap: 10px; margin-top: 18px; }
 .oauth-divider { color: var(--muted); font-size: 10px; text-align: center; }
-.oauth-button { text-decoration: none; width: 100%; }
+.oauth-button { gap: 10px; text-decoration: none; width: 100%; }
