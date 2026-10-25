@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router";
 import { PostForm } from "../components/forms";
+import { AiPanel } from "../components/AiPanel";
 import { Confirm, EmptyState, FormError, Icon, Modal, PageHeader, StateText } from "../components/ui";
 import { api } from "../lib/api";
 import { timeAgo } from "../lib/format";
@@ -146,6 +147,20 @@ function Discussion({ id }: { id: string }) {
             </> : <button onClick={() => { setReportTarget({ type: "post", id: p.id }); setReporting(true); }}>Report</button>}
           </div>
         </article>
+
+        <section className="card">
+          <AiPanel<{ summary: string; keyPoints: string[] }>
+            title="Discussion summary"
+            action="Summarise"
+            run={() => api(`/ai/community/posts/${id}/summary`, { method: "POST" })}
+            render={(result) => (
+              <>
+                <p>{result.summary}</p>
+                {result.keyPoints.length > 0 && <ul>{result.keyPoints.map((k, i) => <li key={i}>{k}</li>)}</ul>}
+              </>
+            )}
+          />
+        </section>
 
         <section className="card comment-box">
           <h3>Replies</h3>

@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from "react";
-import { api, readAsDataUrl } from "../lib/api";
+import { useRef, useState, type FormEvent } from "react";
+import { api, apiUpload, readAsDataUrl } from "../lib/api";
 import { todayIso } from "../lib/format";
 import type { Account, Bill, Budget, Category, Goal, Listing, Transaction } from "../lib/types";
+import { AiNotice, useAiCall } from "./AiPanel";
 import { FormError } from "./ui";
 
 /** Runs a submit action, tracks busy state and surfaces the server's message. */
@@ -27,6 +28,14 @@ const text = (form: FormData, key: string) => String(form.get(key) ?? "").trim()
 const optional = (form: FormData, key: string) => (text(form, key) === "" ? undefined : text(form, key));
 const num = (form: FormData, key: string) => Number(form.get(key));
 
+/** Fills one field of an uncontrolled form, for an AI suggestion. The user still reviews it before saving. */
+function setField(form: HTMLFormElement | null, name: string, value: string | number): void {
+  const field = form?.elements.namedItem(name);
+  if (field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement) field.value = String(value);
+}
+
+const fieldText = (form: HTMLFormElement | null, name: string): string => String(new FormData(form ?? undefined).get(name) ?? "").trim();
+
 interface FormProps<T = undefined> {
   initial?: T;
   onSaved: () => void;
@@ -43,6 +52,9 @@ function Actions({ busy, onCancel, label, danger }: { busy: boolean; onCancel: (
 }
 
 export function TransactionForm({ accounts, categories, initial, onSaved, onCancel }: FormProps<Transaction> & { accounts: Account[]; categories: Category[] }) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const ai = useAiCall();
   const { busy, error, submit } = useSubmit(async (form) => {
     const body = {
       type: text(form, "type"),
@@ -56,8 +68,33 @@ export function TransactionForm({ accounts, categories, initial, onSaved, onCanc
     else await api("/transactions", { method: "POST", json: body });
     onSaved();
   });
+
+  const suggestCategory = async () => {
+    const description = fieldText(formRef.current, "description");
+    if (description.length < 2) return ai.setError("Write a short description first, then ask for a category.");
+    const type = fieldText(formRef.current, "type") === "income" ? "income" : "expense";
+    const amount = Number(fieldText(formRef.current, "amount")) || undefined;
+    const answer = await ai.call(() => api<{ categoryId: string | null }>("/ai/finance/categorize", { method: "POST", json: { description, type, amount } }));
+    if (answer?.categoryId) setField(formRef.current, "categoryId", answer.categoryId);
+    else if (answer) ai.setError("No category matched. Choose one yourself.");
+  };
+
+  /** Reads a receipt photo and fills the form from it. Nothing is saved until the user presses Save. */
+  const scanReceipt = async (file: File | undefined) => {
+    if (!file) return;
+    const receipt = await ai.call(() => apiUpload<{ type: string; amount: number; date: string; description: string; categoryId: string | null }>("/ai/finance/receipt", file));
+    if (!receipt) return;
+    const expense = formRef.current?.querySelector<HTMLInputElement>('input[name="type"][value="expense"]');
+    if (expense) expense.checked = true;
+    setField(formRef.current, "amount", receipt.amount);
+    setField(formRef.current, "date", receipt.date);
+    setField(formRef.current, "description", receipt.description);
+    if (receipt.categoryId) setField(formRef.current, "categoryId", receipt.categoryId);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
   return (
-    <form className="flow-form" onSubmit={submit}>
+    <form className="flow-form" onSubmit={submit} ref={formRef}>
       <div className="type-choice">
         <label><input type="radio" name="type" value="expense" defaultChecked={!initial || initial.type === "expense"} /> Expense</label>
         <label><input type="radio" name="type" value="income" defaultChecked={initial?.type === "income"} /> Income</label>
@@ -77,7 +114,13 @@ export function TransactionForm({ accounts, categories, initial, onSaved, onCanc
         </select></label>
       </div>
       <label>Description<input name="description" maxLength={120} defaultValue={initial?.description} placeholder="What was this for?" /></label>
-      <FormError message={error} />
+      <div className="ai-inline">
+        <button type="button" className="secondary" onClick={suggestCategory} disabled={ai.busy}>{ai.busy ? "Thinking..." : "AI: suggest category"}</button>
+        <button type="button" className="secondary" onClick={() => fileRef.current?.click()} disabled={ai.busy}>AI: scan receipt</button>
+        <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(e) => scanReceipt(e.target.files?.[0])} />
+      </div>
+      <AiNotice />
+      <FormError message={error || ai.error} />
       <Actions busy={busy} onCancel={onCancel} label={initial ? "Save changes" : "Save transaction"} />
     </form>
   );
@@ -229,6 +272,9 @@ export const LISTING_CATEGORIES = ["Electronics", "Home", "Clothing", "Books", "
 export function ListingForm({ initial, onSaved, onCancel }: FormProps<Listing>) {
   const [photos, setPhotos] = useState<string[]>(initial?.photos ?? []);
   const [photoError, setPhotoError] = useState("");
+  const [priceNote, setPriceNote] = useState("");
+  const formRef = useRef<HTMLFormElement>(null);
+  const ai = useAiCall();
   const { busy, error, submit } = useSubmit(async (form) => {
     const body = {
       title: text(form, "title"),
@@ -256,8 +302,32 @@ export function ListingForm({ initial, onSaved, onCancel }: FormProps<Listing>) 
     }
   };
 
+  const listingDetails = () => ({
+    title: fieldText(formRef.current, "title"),
+    category: fieldText(formRef.current, "category"),
+    condition: fieldText(formRef.current, "condition"),
+  });
+
+  const writeDescription = async () => {
+    const answer = await ai.call(() => api<{ description: string }>("/ai/market/description", {
+      method: "POST",
+      json: { ...listingDetails(), notes: fieldText(formRef.current, "description") || undefined },
+    }));
+    if (answer) setField(formRef.current, "description", answer.description);
+  };
+
+  const suggestPrice = async () => {
+    const answer = await ai.call(() => api<{ suggestedPrice: number; low: number; high: number; reasoning: string }>("/ai/market/price", {
+      method: "POST",
+      json: { ...listingDetails(), description: fieldText(formRef.current, "description") || undefined },
+    }));
+    if (!answer) return;
+    setField(formRef.current, "price", answer.suggestedPrice);
+    setPriceNote(`Suggested ${answer.suggestedPrice} (range ${answer.low} to ${answer.high}). ${answer.reasoning}`);
+  };
+
   return (
-    <form className="flow-form" onSubmit={submit}>
+    <form className="flow-form" onSubmit={submit} ref={formRef}>
       <label>Title<input required name="title" maxLength={80} defaultValue={initial?.title} placeholder="e.g. Wireless Headphones" /></label>
       <div className="form-row">
         <label>Price<input required name="price" type="number" min="0.01" step="0.01" defaultValue={initial?.price} /></label>
@@ -268,7 +338,13 @@ export function ListingForm({ initial, onSaved, onCancel }: FormProps<Listing>) 
       <label>Condition<select name="condition" defaultValue={initial?.condition ?? "Good"}>
         {CONDITIONS.map((c) => <option key={c}>{c}</option>)}
       </select></label>
+      <div className="ai-inline">
+        <button type="button" className="secondary" onClick={suggestPrice} disabled={ai.busy}>AI: suggest price</button>
+        <button type="button" className="secondary" onClick={writeDescription} disabled={ai.busy}>AI: write description</button>
+      </div>
+      {priceNote && <p className="muted-small">{priceNote}</p>}
       <label>Description<textarea required name="description" maxLength={2000} defaultValue={initial?.description} placeholder="Describe the item honestly" /></label>
+      <AiNotice />
       <div className="photo-picker">
         <span>Photos (up to 5)</span>
         <div className="photo-row">
@@ -281,25 +357,50 @@ export function ListingForm({ initial, onSaved, onCancel }: FormProps<Listing>) 
         </div>
         {photoError && <p className="auth-error">{photoError}</p>}
       </div>
-      <FormError message={error} />
+      <FormError message={error || ai.error} />
       <Actions busy={busy} onCancel={onCancel} label={initial ? "Save listing" : "Publish listing"} />
     </form>
   );
 }
 
 export function PostForm({ onSaved, onCancel }: { onSaved: () => void; onCancel: () => void }) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const ai = useAiCall();
+  const [review, setReview] = useState<{ issues: { rule: string; message: string }[]; suggestedTitle: string } | null>(null);
   const { busy, error, submit } = useSubmit(async (form) => {
     await api("/posts", { method: "POST", json: { title: text(form, "title"), content: text(form, "content"), category: text(form, "category") } });
     onSaved();
   });
+
+  /** Checks the draft against the community rules. It only warns: the author decides what to publish. */
+  const checkDraft = async () => {
+    const answer = await ai.call(() => api<{ issues: { rule: string; message: string }[]; suggestedTitle: string }>("/ai/community/draft-check", {
+      method: "POST",
+      json: { title: fieldText(formRef.current, "title"), content: fieldText(formRef.current, "content"), category: fieldText(formRef.current, "category") },
+    }));
+    if (answer) setReview(answer);
+  };
+
   return (
-    <form className="flow-form" onSubmit={submit}>
+    <form className="flow-form" onSubmit={submit} ref={formRef}>
       <label>Title<input required name="title" maxLength={140} placeholder="A clear question or tip" /></label>
       <label>Category<select name="category" defaultValue="General">
         {["Saving Tips", "Budgeting", "Financial Goals", "Student Life", "General"].map((c) => <option key={c}>{c}</option>)}
       </select></label>
       <label>Content<textarea required name="content" maxLength={4000} placeholder="Share your experience. Never include account numbers or balances." /></label>
-      <FormError message={error} />
+      <div className="ai-inline">
+        <button type="button" className="secondary" onClick={checkDraft} disabled={ai.busy}>{ai.busy ? "Checking..." : "AI: check against the rules"}</button>
+      </div>
+      {review && (
+        <div className="ai-body">
+          {review.issues.length === 0 ? <p>No rule problems found.</p> : (
+            <ul>{review.issues.map((i, n) => <li key={n}><strong>{i.rule}</strong>: {i.message}</li>)}</ul>
+          )}
+          {review.suggestedTitle && <button type="button" className="secondary" onClick={() => setField(formRef.current, "title", review.suggestedTitle)}>Use suggested title</button>}
+        </div>
+      )}
+      <AiNotice />
+      <FormError message={error || ai.error} />
       <Actions busy={busy} onCancel={onCancel} label="Publish post" />
     </form>
   );

@@ -1,5 +1,5 @@
-import { beforeAll, describe, expect, it } from "vitest";
-import { api, freshDatabase, register } from "./helpers";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { api, dropTestDatabase, freshDatabase, register } from "./helpers";
 
 const PASSWORD = "correct-horse-battery";
 const today = () => new Date().toISOString().slice(0, 10);
@@ -9,8 +9,9 @@ async function category(token: string, name: string) {
   return res.body.find((c: { name: string }) => c.name === name);
 }
 
-describe("Saviny API (SQLite)", () => {
+describe("Saviny API", () => {
   beforeAll(() => freshDatabase("api"));
+  afterAll(() => dropTestDatabase());
 
   it("starts with no data and creates default categories on registration", async () => {
     const { body: { token } } = await register("fresh@example.com");

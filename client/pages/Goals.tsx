@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { ContributionForm, GoalForm } from "../components/forms";
+import { AiPanel } from "../components/AiPanel";
 import { Confirm, EmptyState, Icon, Modal, PageHeader, StateText } from "../components/ui";
 import { api } from "../lib/api";
 import { formatMoney, longDate, monthYear, shortDate } from "../lib/format";
@@ -115,6 +116,20 @@ function GoalDetail({ id }: { id: string }) {
               <button className="danger-button" onClick={() => setConfirm("delete")}>Delete</button>
             </div>
           </section>
+          <section className="card">
+            <AiPanel<{ monthlyTarget: number; milestones: string[]; advice: string }>
+              title="Savings plan"
+              action="Plan my savings"
+              run={() => api(`/ai/goals/${id}/plan`, { method: "POST" })}
+              render={(plan) => (
+                <>
+                  <p><strong>Set aside about {formatMoney(plan.monthlyTarget, currency)} a month.</strong> {plan.advice}</p>
+                  {plan.milestones.length > 0 && <ul>{plan.milestones.map((m, i) => <li key={i}>{m}</li>)}</ul>}
+                </>
+              )}
+            />
+          </section>
+
           <section className="card activity-card">
             <div className="section-title"><div><h2>Contribution history</h2><p>Every amount you have added to this goal</p></div></div>
             {(contributions.data ?? []).length === 0 && <p className="muted-small">No contributions yet.</p>}

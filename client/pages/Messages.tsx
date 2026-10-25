@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { EmptyState, Icon, PageHeader, StateText } from "../components/ui";
+import { AiNotice, useAiCall } from "../components/AiPanel";
 import { apiUpload, ApiError, api } from "../lib/api";
 import { mediaUrl } from "../lib/media";
 import { enableNotifications, notificationPermission } from "../lib/notify";
@@ -208,6 +209,8 @@ function ThreadView({ id }: { id: string }) {
   const [older, setOlder] = useState<ServerMessage[]>([]);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [draft, setDraft] = useState("");
+  const [replies, setReplies] = useState<string[]>([]);
+  const suggest = useAiCall();
   const [typing, setTyping] = useState<"typing" | "recording" | null>(null);
   const [error, setError] = useState("");
   const [picker, setPicker] = useState<string | null>(null);
@@ -529,6 +532,29 @@ function ThreadView({ id }: { id: string }) {
           <button type="button" className="primary" onClick={() => stopRecording(false)}><Icon name="arrow" size={17} /> Send</button>
         </div>
       ) : (
+        <>
+        {replies.length > 0 && (
+          <div className="ai-chips" aria-label="Suggested replies">
+            {replies.map((reply) => (
+              <button type="button" key={reply} onClick={() => { setDraft(reply); setReplies([]); }}>{reply}</button>
+            ))}
+          </div>
+        )}
+        <div className="ai-inline">
+          <button
+            type="button"
+            className="secondary"
+            disabled={suggest.busy || !live}
+            onClick={async () => {
+              const answer = await suggest.call(() => api<{ replies: string[] }>(`/ai/messages/${id}/replies`, { method: "POST" }));
+              if (answer) setReplies(answer.replies);
+            }}
+          >
+            {suggest.busy ? "Thinking..." : "AI: suggest replies"}
+          </button>
+          {suggest.error && <span className="auth-error" role="alert">{suggest.error}</span>}
+          {replies.length > 0 && <AiNotice />}
+        </div>
         <form className="thread-composer" onSubmit={sendText}>
           <label className={`icon-button attach ${live ? "" : "disabled"}`} aria-label="Attach photo">
             <Icon name="plus" size={18} />
@@ -550,6 +576,7 @@ function ThreadView({ id }: { id: string }) {
             <button type="button" className="icon-button mic" aria-label="Record voice message" onClick={startRecording} disabled={!live}>🎤</button>
           )}
         </form>
+        </>
       )}
 
       {viewing && (

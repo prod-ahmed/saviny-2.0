@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { BudgetForm, ContributionForm, TransactionForm } from "../components/forms";
+import { WhatIf } from "../components/WhatIf";
 import { Icon, Modal, SectionTitle, StateText } from "../components/ui";
 import { api } from "../lib/api";
 import { formatMoney, monthYear, shortDate, timeAgo } from "../lib/format";
@@ -165,6 +166,10 @@ export default function Dashboard() {
               ))}
             </div>
           </article>
+        </section>
+
+        <section className="card">
+          <WhatIf currency={currency} />
         </section>
 
         <section className="lower-grid">

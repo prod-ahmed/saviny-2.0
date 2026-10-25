@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { EmptyState, Icon, PageHeader, StateText } from "../components/ui";
+import { AiPanel } from "../components/AiPanel";
 import { api } from "../lib/api";
 import { timeAgo } from "../lib/format";
 import { useApi } from "../lib/hooks";
@@ -37,6 +38,12 @@ export default function Notifications() {
   return (
     <div className="content module-page">
       <PageHeader eyebrow="STAY INFORMED" title="Notifications" description="Useful alerts across your budgets, bills, goals, marketplace, and community." />
+      <AiPanel<{ digest: string }>
+        title="Digest"
+        action="Summarise unread"
+        run={() => api("/ai/notifications/digest")}
+        render={(result) => <p>{result.digest}</p>}
+      />
       <section className="card notification-page">
         <div className="notification-tools">
           {(["all", "unread", "financial", "community"] as Filter[]).map((f) => (

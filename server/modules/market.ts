@@ -2,12 +2,15 @@ import { z } from "zod";
 import { context } from "../context";
 import { author } from "../common/mappers";
 import { badRequest, forbidden, notFound } from "../common/errors";
+import { removeListing } from "../common/cascade";
+import { defined } from "../common/domain";
 import { newId, nowIso, round2 } from "../common/security";
+import { escapeRegex, isDuplicateKey, type Filter, type Store } from "../database/store";
 import type { Row } from "../database/types";
 import { route, type Route } from "../http/types";
 import { positiveMoney, text } from "../http/schema";
 
-const CONDITIONS = ["New", "Like new", "Good", "Fair"] as const;
+export const CONDITIONS = ["New", "Like new", "Good", "Fair"] as const;
 const MAX_PHOTO_CHARS = Math.ceil(500 * 1024 * 1.4); // ~500 KB once base64-encoded
 const MAX_PHOTOS = 5;
 
@@ -38,7 +41,7 @@ const saleSchema = z.object({
   amount: positiveMoney.optional(),
 }).strict();
 
-const db = () => context().db;
+const db = async (): Promise<Store> => (await context()).store;
 
 /** Photos must be https URLs or small inline images. */
 function assertPhotos(photos: string[]): void {
@@ -50,29 +53,28 @@ function assertPhotos(photos: string[]): void {
 }
 
 /** Listing mutations are seller-only: 404 when unknown, 403 when owned by someone else. */
-function sellerListing(id: string, userId: string): Row {
-  const listing = db().prepare("SELECT * FROM listings WHERE id = ?").get(id) as Row | undefined;
+async function sellerListing(store: Store, id: string, userId: string): Promise<Row> {
+  const listing = await store.one("listings", { id });
   if (!listing) throw notFound();
   if (listing.user_id !== userId) throw forbidden("Only the seller can change this listing");
   return listing;
 }
 
-function photosOf(listingId: string): string[] {
-  return (db().prepare("SELECT url FROM listing_photos WHERE listing_id = ? ORDER BY position").all(listingId) as { url: string }[])
-    .map((p) => p.url);
+async function photosOf(store: Store, listingId: string): Promise<string[]> {
+  return (await store.many("listing_photos", { listing_id: listingId }, { sort: { position: 1 } })).map((p) => p.url);
 }
 
-function setPhotos(listingId: string, photos: string[]): void {
-  db().prepare("DELETE FROM listing_photos WHERE listing_id = ?").run(listingId);
-  photos.forEach((url, position) => {
-    db().prepare("INSERT INTO listing_photos (listing_id, position, url) VALUES (?, ?, ?)").run(listingId, position, url);
-  });
+async function setPhotos(store: Store, listingId: string, photos: string[]): Promise<void> {
+  await store.remove("listing_photos", { listing_id: listingId });
+  if (photos.length > 0) {
+    await store.insert("listing_photos", photos.map((url, position) => ({ listing_id: listingId, position, url })));
+  }
 }
 
-function listingView(r: Row, viewerId?: string) {
-  const seller = db().prepare("SELECT first_name, last_name, id FROM users WHERE id = ?").get(r.user_id) as Row;
-  const favorited = !!viewerId && !!db().prepare("SELECT 1 FROM favorites WHERE user_id = ? AND listing_id = ?").get(viewerId, r.id);
-  const photos = photosOf(r.id);
+async function listingView(store: Store, r: Row, viewerId?: string) {
+  const seller = await store.one("users", { id: r.user_id });
+  const favorited = !!viewerId && !!(await store.one("favorites", { user_id: viewerId, listing_id: r.id }));
+  const photos = await photosOf(store, r.id);
   return {
     id: r.id,
     title: r.title,
@@ -84,121 +86,123 @@ function listingView(r: Row, viewerId?: string) {
     image: photos[0] ?? "",
     status: r.status,
     createdAt: r.created_at,
-    seller: author({ ...seller, user_id: seller.id }),
+    seller: author({ ...(seller as Row), user_id: r.user_id }),
     isOwner: !!viewerId && viewerId === r.user_id,
     favorited,
   };
 }
 
-const reload = (id: string): Row => db().prepare("SELECT * FROM listings WHERE id = ?").get(id) as Row;
-
 export const marketRoutes: Route[] = [
-  route("GET", "listings", (ctx) => {
+  route("GET", "listings", async (ctx) => {
     const q = ctx.query;
-    const where: string[] = [];
-    const params: unknown[] = [];
-    if (q.get("mine") === "true" && ctx.viewer) {
-      where.push("user_id = ?");
-      params.push(ctx.viewer.id);
-    } else {
-      where.push("status = 'available'");
-    }
+    const store = await db();
+    const filter: Filter = {};
+    if (q.get("mine") === "true" && ctx.viewer) filter.user_id = ctx.viewer.id;
+    else filter.status = "available";
     const category = q.get("category");
     const maxPrice = q.get("maxPrice");
     const search = q.get("q")?.trim();
-    if (category && category !== "All categories") { where.push("category = ?"); params.push(category); }
-    if (maxPrice && Number(maxPrice) > 0) { where.push("price <= ?"); params.push(Number(maxPrice)); }
+    if (category && category !== "All categories") filter.category = category;
+    if (maxPrice && Number(maxPrice) > 0) filter.price = { $lte: Number(maxPrice) };
     if (search) {
-      where.push("(LOWER(title) LIKE ? OR LOWER(description) LIKE ?)");
-      const term = `%${search.toLowerCase()}%`;
-      params.push(term, term);
+      const pattern = { $regex: escapeRegex(search), $options: "i" };
+      filter.$or = [{ title: pattern }, { description: pattern }];
     }
-    const clause = where.join(" AND ");
-    const total = (db().prepare(`SELECT COUNT(*) AS n FROM listings WHERE ${clause}`).get(...params) as { n: number }).n;
+    const total = await store.count("listings", filter);
     const size = Math.min(100, Math.max(1, Number(q.get("pageSize") ?? 24) || 24));
-    const offset = (Math.max(1, Number(q.get("page") ?? 1) || 1) - 1) * size;
-    const rows = db().prepare(`SELECT * FROM listings WHERE ${clause} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
-      .all(...params, size, offset) as Row[];
-    return { items: rows.map((r) => listingView(r, ctx.viewer?.id)), total };
+    const skip = (Math.max(1, Number(q.get("page") ?? 1) || 1) - 1) * size;
+    const rows = await store.many("listings", filter, { sort: { created_at: -1 }, skip, limit: size });
+    return { items: await Promise.all(rows.map((r) => listingView(store, r, ctx.viewer?.id))), total };
   }, { public: true }),
 
   route("POST", "listings", async (ctx) => {
     const dto = await ctx.body(listingSchema);
     const photos = dto.photos ?? [];
     assertPhotos(photos);
+    const store = await db();
     const id = newId();
-    db().transaction(() => {
-      db().prepare(`INSERT INTO listings (id, user_id, title, description, price, category, condition, status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'available', ?)`)
-        .run(id, ctx.user.id, dto.title.trim(), dto.description.trim(), round2(dto.price), dto.category.trim(), dto.condition, nowIso());
-      setPhotos(id, photos);
-    })();
-    return listingView(reload(id), ctx.user.id);
+    await store.insert("listings", {
+      id, user_id: ctx.user.id, title: dto.title.trim(), description: dto.description.trim(), price: round2(dto.price),
+      category: dto.category.trim(), condition: dto.condition, status: "available", created_at: nowIso(),
+    });
+    await setPhotos(store, id, photos);
+    return listingView(store, (await store.one("listings", { id })) as Row, ctx.user.id);
   }),
 
-  route("GET", "listings/:id", (ctx) => {
-    const listing = db().prepare("SELECT * FROM listings WHERE id = ?").get(ctx.params.id) as Row | undefined;
+  route("GET", "listings/:id", async (ctx) => {
+    const store = await db();
+    const listing = await store.one("listings", { id: ctx.params.id });
     const visible = listing && (listing.status === "available" || listing.user_id === ctx.viewer?.id);
     if (!listing || !visible) throw notFound();
-    return listingView(listing, ctx.viewer?.id);
+    return listingView(store, listing, ctx.viewer?.id);
   }, { public: true }),
 
   route("PATCH", "listings/:id", async (ctx) => {
     const dto = await ctx.body(listingUpdateSchema);
+    const store = await db();
     const id = ctx.params.id;
-    sellerListing(id, ctx.user.id);
+    await sellerListing(store, id, ctx.user.id);
     if (dto.photos) assertPhotos(dto.photos);
-    db().transaction(() => {
-      db().prepare(`UPDATE listings SET title = COALESCE(?, title), description = COALESCE(?, description),
-          price = COALESCE(?, price), category = COALESCE(?, category), condition = COALESCE(?, condition) WHERE id = ?`)
-        .run(dto.title?.trim() ?? null, dto.description?.trim() ?? null, dto.price === undefined ? null : round2(dto.price),
-          dto.category ?? null, dto.condition ?? null, id);
-      if (dto.photos) setPhotos(id, dto.photos);
-    })();
-    return listingView(reload(id), ctx.user.id);
+    await store.update("listings", { id }, defined({
+      title: dto.title?.trim(),
+      description: dto.description?.trim(),
+      price: dto.price === undefined ? undefined : round2(dto.price),
+      category: dto.category,
+      condition: dto.condition,
+    }));
+    if (dto.photos) await setPhotos(store, id, dto.photos);
+    return listingView(store, (await store.one("listings", { id })) as Row, ctx.user.id);
   }),
 
-  route("DELETE", "listings/:id", (ctx) => {
-    sellerListing(ctx.params.id, ctx.user.id);
-    db().prepare("DELETE FROM listings WHERE id = ?").run(ctx.params.id);
+  route("DELETE", "listings/:id", async (ctx) => {
+    const store = await db();
+    await sellerListing(store, ctx.params.id, ctx.user.id);
+    await removeListing(store, ctx.params.id);
   }, { status: 204 }),
 
   route("POST", "listings/:id/status", async (ctx) => {
     const dto = await ctx.body(statusSchema);
-    sellerListing(ctx.params.id, ctx.user.id);
-    db().prepare("UPDATE listings SET status = ? WHERE id = ?").run(dto.status, ctx.params.id);
-    return listingView(reload(ctx.params.id), ctx.user.id);
+    const store = await db();
+    await sellerListing(store, ctx.params.id, ctx.user.id);
+    await store.update("listings", { id: ctx.params.id }, { status: dto.status });
+    return listingView(store, (await store.one("listings", { id: ctx.params.id })) as Row, ctx.user.id);
   }),
 
   /** Records a sale outcome; a completed sale marks the listing as sold. */
   route("POST", "listings/:id/sale", async (ctx) => {
     const dto = await ctx.body(saleSchema);
+    const store = await db();
     const id = ctx.params.id;
-    const listing = sellerListing(id, ctx.user.id);
+    const listing = await sellerListing(store, id, ctx.user.id);
     const saleId = newId();
-    db().transaction(() => {
-      db().prepare("INSERT INTO sales (id, user_id, listing_id, outcome, amount, created_at) VALUES (?, ?, ?, ?, ?, ?)")
-        .run(saleId, ctx.user.id, id, dto.outcome, round2(dto.amount ?? listing.price), nowIso());
-      if (dto.outcome === "completed") db().prepare("UPDATE listings SET status = 'sold' WHERE id = ?").run(id);
-    })();
-    return { saleId, listing: listingView(reload(id), ctx.user.id) };
+    await store.insert("sales", {
+      id: saleId, user_id: ctx.user.id, listing_id: id, outcome: dto.outcome, amount: round2(dto.amount ?? listing.price), created_at: nowIso(),
+    });
+    if (dto.outcome === "completed") await store.update("listings", { id }, { status: "sold" });
+    return { saleId, listing: await listingView(store, (await store.one("listings", { id })) as Row, ctx.user.id) };
   }),
 
-  route("PUT", "listings/:id/favorite", (ctx) => {
-    const listing = db().prepare("SELECT 1 FROM listings WHERE id = ? AND status = 'available'").get(ctx.params.id);
-    if (!listing) throw notFound();
-    db().prepare("INSERT OR IGNORE INTO favorites (user_id, listing_id, created_at) VALUES (?, ?, ?)").run(ctx.user.id, ctx.params.id, nowIso());
+  route("PUT", "listings/:id/favorite", async (ctx) => {
+    const store = await db();
+    if (!(await store.one("listings", { id: ctx.params.id, status: "available" }))) throw notFound();
+    try {
+      await store.insert("favorites", { user_id: ctx.user.id, listing_id: ctx.params.id, created_at: nowIso() });
+    } catch (err) {
+      if (!isDuplicateKey(err)) throw err; // already a favourite
+    }
   }, { status: 204 }),
 
-  route("DELETE", "listings/:id/favorite", (ctx) => {
-    db().prepare("DELETE FROM favorites WHERE user_id = ? AND listing_id = ?").run(ctx.user.id, ctx.params.id);
+  route("DELETE", "listings/:id/favorite", async (ctx) => {
+    await (await db()).remove("favorites", { user_id: ctx.user.id, listing_id: ctx.params.id });
   }, { status: 204 }),
 
-  route("GET", "favorites", (ctx) => {
-    const rows = db().prepare(`
-      SELECT l.* FROM favorites f JOIN listings l ON l.id = f.listing_id
-      WHERE f.user_id = ? AND l.status = 'available' ORDER BY f.created_at DESC`).all(ctx.user.id) as Row[];
-    return rows.map((r) => listingView(r, ctx.user.id));
+  route("GET", "favorites", async (ctx) => {
+    const store = await db();
+    const favorites = await store.many("favorites", { user_id: ctx.user.id }, { sort: { created_at: -1 } });
+    const listings = new Map((await store.many("listings", { id: { $in: favorites.map((f) => f.listing_id) }, status: "available" }))
+      .map((l) => [l.id, l]));
+    const visible = favorites.map((f) => listings.get(f.listing_id)).filter((l): l is Row => !!l);
+    return Promise.all(visible.map((r) => listingView(store, r, ctx.user.id)));
   }),
 ];
 

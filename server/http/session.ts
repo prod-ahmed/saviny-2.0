@@ -1,15 +1,15 @@
 import { context } from "../context";
 import { toUser } from "../common/mappers";
 import { sha256 } from "../common/security";
-import type { Row } from "../database/types";
 
 /** Resolves a session token to its user, or null when the session was revoked or never existed. */
-export function userFromToken(token: string): { user: ReturnType<typeof toUser>; tokenHash: string } | null {
+export async function userFromToken(token: string): Promise<{ user: ReturnType<typeof toUser>; tokenHash: string } | null> {
+  const { store } = await context();
   const tokenHash = sha256(token);
-  const row = context().db
-    .prepare("SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?")
-    .get(tokenHash) as Row | undefined;
-  return row ? { user: toUser(row), tokenHash } : null;
+  const session = await store.one("sessions", { token_hash: tokenHash });
+  if (!session) return null;
+  const user = await store.one("users", { id: session.user_id });
+  return user ? { user: toUser(user), tokenHash } : null;
 }
 
 /** The Bearer token of a request, if any. */

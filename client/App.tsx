@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AssistantChat } from "./components/AssistantChat";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import Accounts from "./pages/Accounts";
 import Landing from "./pages/Landing";
@@ -276,6 +277,8 @@ export default function App() {
             ))}
           </nav>
         </main>
+
+        <AssistantChat />
 
         {logoutOpen && (
           <Confirm

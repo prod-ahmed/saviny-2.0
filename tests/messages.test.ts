@@ -1,7 +1,7 @@
 import type { Server } from "node:http";
 import type { Socket } from "socket.io-client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { api, connectSocket, freshDatabase, once, register, startSocketServer, waitFor } from "./helpers";
+import { api, connectSocket, dropTestDatabase, freshDatabase, once, register, startSocketServer, waitFor } from "./helpers";
 
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
 
@@ -44,6 +44,7 @@ describe("Marketplace messages (REST + WebSocket)", () => {
   afterAll(async () => {
     sockets.forEach((s) => s.disconnect());
     await new Promise((resolve) => server.close(resolve));
+    await dropTestDatabase();
   });
 
   it("refuses a socket without a valid session", async () => {

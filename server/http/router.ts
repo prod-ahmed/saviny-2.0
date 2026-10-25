@@ -83,7 +83,7 @@ async function run(req: Request, match: Match, url: URL, cors: Record<string, st
   }
 
   const token = bearerToken(req);
-  const session = token ? userFromToken(token) : null;
+  const session = token ? await userFromToken(token) : null;
   if (!route.public && !session) throw new HttpError(401, "Unauthorized");
 
   let bodyRead: Promise<unknown> | undefined;

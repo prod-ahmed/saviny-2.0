@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { BudgetForm } from "../components/forms";
+import { AiPanel } from "../components/AiPanel";
 import { Confirm, EmptyState, Icon, Modal, PageHeader, StateText } from "../components/ui";
 import { api } from "../lib/api";
 import { formatMoney, shortDate } from "../lib/format";
@@ -24,6 +25,17 @@ function BudgetList() {
     <div className="content module-page">
       <PageHeader eyebrow="PLAN WITH CONFIDENCE" title="Budget management" description="Set thoughtful limits and stay ahead of upcoming commitments." action="Create budget" onAction={() => setCreating(true)} />
       <div className="module-tabs"><button className="active">Active budgets</button><button onClick={() => navigate("/bills")}>Bills &amp; scheduled payments</button></div>
+      <AiPanel<{ headline: string; tips: string[] }>
+        title="Budget insights"
+        action="Review my budgets"
+        run={() => api("/ai/budgets/insights")}
+        render={(result) => (
+          <>
+            <p>{result.headline}</p>
+            {result.tips.length > 0 && <ul>{result.tips.map((tip, i) => <li key={i}>{tip}</li>)}</ul>}
+          </>
+        )}
+      />
       <StateText loading={budgets.loading} error={budgets.error} empty={!budgets.data} />
       {budgets.data && budgets.data.length === 0 && (
         <EmptyState title="No budgets yet" text="A budget limits how much you spend in one or more categories each period." action="Create budget" onAction={() => setCreating(true)} />

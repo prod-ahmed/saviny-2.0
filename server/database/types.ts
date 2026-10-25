@@ -1,2 +1,2 @@
-/** A raw SQLite row; columns are snake_case and mapped to camelCase by the mappers. */
+/** A stored MongoDB document, read without its _id. Fields are snake_case, as the mappers expect. */
 export type Row = Record<string, any>;

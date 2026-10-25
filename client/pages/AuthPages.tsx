@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import { FormError } from "../components/ui";
+import { AiNotice, useAiCall } from "../components/AiPanel";
 import { api, setToken } from "../lib/api";
 import type { User } from "../lib/types";
 
@@ -74,6 +75,32 @@ function OAuthButtons() {
   );
 }
 
+/** Help for people who cannot sign in. Sees no account and never asks for a password. */
+function SignInHelp() {
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState("");
+  const ai = useAiCall();
+
+  const ask = async (e: FormEvent) => {
+    e.preventDefault();
+    const result = await ai.call(() => api<{ answer: string }>("/ai/auth/help", { method: "POST", json: { question: question.trim() } }));
+    if (result) setAnswer(result.answer);
+  };
+
+  return (
+    <details className="ai-panel">
+      <summary><span className="ai-badge">AI</span> Need help signing in?</summary>
+      <form className="flow-form" onSubmit={ask}>
+        <label>Describe the problem<textarea required maxLength={500} rows={2} value={question} onChange={(e) => setQuestion(e.target.value)} /></label>
+        <button type="submit" className="secondary" disabled={ai.busy}>{ai.busy ? "Thinking..." : "Ask for help"}</button>
+      </form>
+      {ai.error && <p className="auth-error" role="alert">{ai.error}</p>}
+      {answer && <div className="ai-body"><p>{answer}</p></div>}
+      <AiNotice />
+    </details>
+  );
+}
+
 export function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -129,6 +156,7 @@ export function Login() {
         <button className="primary auth-submit" disabled={busy}>{busy ? "Logging in…" : "Log in securely"}</button>
       </form>
       <OAuthButtons />
+      <SignInHelp />
       <p className="auth-foot">
         <Link to="/forgot-password">Forgot password?</Link>
       </p>

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { api, freshDatabase, register } from "./helpers";
+import { api, dropTestDatabase, freshDatabase, register } from "./helpers";
 
 // What each provider returns for the account this test signs in with.
 const providers = {
@@ -38,8 +38,8 @@ async function finishFlow(provider: "google" | "github", state: string, code = "
 }
 
 describe("Google and GitHub sign-in", () => {
-  beforeAll(() => {
-    freshDatabase("oauth");
+  beforeAll(async () => {
+    await freshDatabase("oauth");
     process.env.GOOGLE_CLIENT_ID = "google-client";
     process.env.GOOGLE_CLIENT_SECRET = "google-secret";
     process.env.GITHUB_CLIENT_ID = "github-client";
@@ -48,8 +48,9 @@ describe("Google and GitHub sign-in", () => {
     vi.stubGlobal("fetch", vi.fn(fakeFetch));
   });
 
-  afterAll(() => {
+  afterAll(async () => {
     vi.unstubAllGlobals();
+    await dropTestDatabase();
   });
 
   it("offers each provider only when its credentials are configured", async () => {

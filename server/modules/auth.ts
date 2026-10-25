@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { context } from "../context";
 import { badRequest, forbidden, HttpError } from "../common/errors";
-import { DEFAULT_CATEGORIES, moderatorEmails } from "../common/domain";
+import { DEFAULT_CATEGORIES, moderatorEmails, newUser } from "../common/domain";
 import { toUser } from "../common/mappers";
 import { hashPassword, newId, newToken, nowIso, sha256, verifyPassword } from "../common/security";
 import { CURRENCY_CODES } from "../common/currencies";
+import type { Store } from "../database/store";
 import type { Row } from "../database/types";
 import { route, type Route } from "../http/types";
 import { text } from "../http/schema";
@@ -46,7 +47,7 @@ const deleteRequestSchema = z.object({
   confirmation: z.literal("DELETE"),
 }).strict();
 
-const NOTIFICATION_COLUMNS: Record<string, string> = {
+const NOTIFICATION_FIELDS: Record<string, string> = {
   budgetAlerts: "notify_budget_alerts",
   upcomingBills: "notify_upcoming_bills",
   savingsMilestones: "notify_savings_milestones",
@@ -54,94 +55,102 @@ const NOTIFICATION_COLUMNS: Record<string, string> = {
   marketplaceMessages: "notify_marketplace_messages",
 };
 
-const findUser = (id: string): Row => context().db.prepare("SELECT * FROM users WHERE id = ?").get(id) as Row;
+const findUser = async (store: Store, id: string): Promise<Row> => (await store.one("users", { id })) as Row;
 
-export function openSession(userId: string): string {
+export async function openSession(userId: string): Promise<string> {
+  const { store } = await context();
   const token = newToken();
-  context().db.prepare("INSERT INTO sessions (token_hash, user_id, created_at) VALUES (?, ?, ?)").run(sha256(token), userId, nowIso());
+  await store.insert("sessions", { token_hash: sha256(token), user_id: userId, created_at: nowIso() });
   return token;
+}
+
+/** Stores the default categories every new account starts with. */
+async function addDefaultCategories(store: Store, userId: string): Promise<void> {
+  await store.insert("categories", DEFAULT_CATEGORIES.map((name) => ({ id: newId(), user_id: userId, name, archived: false })));
 }
 
 async function register(body: z.infer<typeof registerSchema>) {
   if (body.password !== body.confirmPassword) throw badRequest("Passwords do not match");
-  const db = context().db;
+  const { store } = await context();
   const email = body.email.toLowerCase();
-  if (db.prepare("SELECT 1 FROM users WHERE email = ?").get(email)) throw badRequest("This email cannot be used");
+  if (await store.one("users", { email })) throw badRequest("This email cannot be used");
 
-  const id = newId();
   const role = moderatorEmails().includes(email) ? "moderator" : "member";
-  const passwordHash = await hashPassword(body.password);
-  db.transaction(() => {
-    db.prepare("INSERT INTO users (id, first_name, last_name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
-      .run(id, body.firstName.trim(), body.lastName.trim(), email, passwordHash, role, nowIso());
-    const insertCategory = db.prepare("INSERT INTO categories (id, user_id, name) VALUES (?, ?, ?)");
-    for (const name of DEFAULT_CATEGORIES) insertCategory.run(newId(), id, name);
-  })();
+  const user = newUser({
+    firstName: body.firstName.trim(),
+    lastName: body.lastName.trim(),
+    email,
+    passwordHash: await hashPassword(body.password),
+    role,
+  });
+  await store.insert("users", user);
+  await addDefaultCategories(store, user.id);
 
-  const token = openSession(id);
-  return { token, user: toUser(findUser(id)) };
+  const token = await openSession(user.id);
+  return { token, user: toUser(await findUser(store, user.id)) };
 }
 
 async function login(body: z.infer<typeof loginSchema>) {
-  const row = context().db.prepare("SELECT * FROM users WHERE email = ?").get(body.email.toLowerCase()) as Row | undefined;
+  const { store } = await context();
+  const row = await store.one("users", { email: body.email.toLowerCase() });
   const valid = row && (await verifyPassword(body.password, row.password_hash));
   if (!row || !valid) throw new HttpError(401, "Invalid email or password");
-  const token = openSession(row.id);
+  const token = await openSession(row.id);
   return { token, user: toUser(row) };
 }
 
 export const authRoutes: Route[] = [
   route("POST", "auth/register", (ctx) => ctx.body(registerSchema).then(register), { public: true, limit: { max: 10, windowMs: 60_000 } }),
   route("POST", "auth/login", (ctx) => ctx.body(loginSchema).then(login), { public: true, status: 200, limit: { max: 5, windowMs: 60_000 } }),
-  route("POST", "auth/logout", (ctx) => {
-    context().db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(ctx.tokenHash);
+  route("POST", "auth/logout", async (ctx) => {
+    const { store } = await context();
+    await store.remove("sessions", { token_hash: ctx.tokenHash });
   }, { status: 204 }),
-  route("GET", "auth/me", (ctx) => toUser(findUser(ctx.user.id))),
+  route("GET", "auth/me", async (ctx) => toUser(await findUser((await context()).store, ctx.user.id))),
 
   route("PATCH", "users/me", async (ctx) => {
     const dto = await ctx.body(profileSchema);
-    const db = context().db;
+    const { store } = await context();
     const email = dto.email?.toLowerCase();
-    if (email && db.prepare("SELECT 1 FROM users WHERE email = ? AND id != ?").get(email, ctx.user.id)) {
+    if (email && (await store.one("users", { email, id: { $ne: ctx.user.id } }))) {
       throw badRequest("This email cannot be used");
     }
-    db.prepare(`
-      UPDATE users SET
-        first_name = COALESCE(?, first_name),
-        last_name = COALESCE(?, last_name),
-        email = COALESCE(?, email),
-        currency = COALESCE(?, currency)
-      WHERE id = ?`).run(dto.firstName?.trim() ?? null, dto.lastName?.trim() ?? null, email ?? null, dto.currency ?? null, ctx.user.id);
-    return toUser(findUser(ctx.user.id));
+    const set: Row = {};
+    if (dto.firstName !== undefined) set.first_name = dto.firstName.trim();
+    if (dto.lastName !== undefined) set.last_name = dto.lastName.trim();
+    if (email !== undefined) set.email = email;
+    if (dto.currency !== undefined) set.currency = dto.currency;
+    if (Object.keys(set).length > 0) await store.update("users", { id: ctx.user.id }, set);
+    return toUser(await findUser(store, ctx.user.id));
   }),
 
   /** Changing the password revokes every other session of the user. */
   route("POST", "users/me/password", async (ctx) => {
     const dto = await ctx.body(passwordSchema);
-    const db = context().db;
-    const row = findUser(ctx.user.id);
+    const { store } = await context();
+    const row = await findUser(store, ctx.user.id);
     if (!(await verifyPassword(dto.currentPassword, row.password_hash))) throw forbidden("Current password is incorrect");
-    const newHash = await hashPassword(dto.newPassword);
-    db.transaction(() => {
-      db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(newHash, ctx.user.id);
-      db.prepare("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?").run(ctx.user.id, ctx.tokenHash);
-    })();
+    await store.update("users", { id: ctx.user.id }, { password_hash: await hashPassword(dto.newPassword) });
+    await store.remove("sessions", { user_id: ctx.user.id, token_hash: { $ne: ctx.tokenHash } });
   }, { status: 204 }),
 
   route("PATCH", "users/me/notifications", async (ctx) => {
     const dto = await ctx.body(notificationsSchema);
-    const db = context().db;
+    const { store } = await context();
+    const set: Row = {};
     for (const [key, value] of Object.entries(dto)) {
-      if (value !== undefined) db.prepare(`UPDATE users SET ${NOTIFICATION_COLUMNS[key]} = ? WHERE id = ?`).run(value ? 1 : 0, ctx.user.id);
+      if (value !== undefined) set[NOTIFICATION_FIELDS[key]] = value;
     }
-    return toUser(findUser(ctx.user.id));
+    if (Object.keys(set).length > 0) await store.update("users", { id: ctx.user.id }, set);
+    return toUser(await findUser(store, ctx.user.id));
   }),
 
   /** Records a deletion request for review; nothing is deleted here. */
   route("POST", "users/me/delete-request", async (ctx) => {
     await ctx.body(deleteRequestSchema);
+    const { store } = await context();
     const at = nowIso();
-    context().db.prepare("UPDATE users SET deletion_requested_at = ? WHERE id = ?").run(at, ctx.user.id);
+    await store.update("users", { id: ctx.user.id }, { deletion_requested_at: at });
     return { deletionRequestedAt: at };
   }, { status: 202 }),
 ];

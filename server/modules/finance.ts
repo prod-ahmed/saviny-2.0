@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { context } from "../context";
 import { badRequest } from "../common/errors";
-import { isoDate, owned, periodRange } from "../common/domain";
+import { defined, isoDate, owned, periodRange } from "../common/domain";
+import { removeAccount, removeBudget, removeGoal } from "../common/cascade";
 import { newId, nowIso, round2 } from "../common/security";
-import type { Db } from "../database/open";
+import { isDuplicateKey, escapeRegex, type Filter, type Store } from "../database/store";
 import type { Row } from "../database/types";
-import { route, type Ctx, type Route } from "../http/types";
+import { route, type Route } from "../http/types";
 import { isoDateString, money, positiveMoney, text } from "../http/schema";
 
 const DAY_MS = 86_400_000;
@@ -100,43 +101,40 @@ const contributionSchema = z.object({
 
 // ---- Helpers ------------------------------------------------------------------
 
-const db = (): Db => context().db;
-const txSelect = `
-    SELECT t.*, a.name AS account_name, c.name AS category_name
-    FROM transactions t
-    JOIN accounts a ON a.id = t.account_id
-    JOIN categories c ON c.id = t.category_id`;
+const db = async (): Promise<Store> => (await context()).store;
+const day = (value: string) => value.slice(0, 10);
+const roundIfSet = (value?: number) => (value === undefined ? undefined : round2(value));
 
-function accountBalance(accountId: string): number {
-  const r = db().prepare(`
-    SELECT a.initial_balance + COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE -t.amount END), 0) AS balance
-    FROM accounts a LEFT JOIN transactions t ON t.account_id = a.id
-    WHERE a.id = ? GROUP BY a.id`).get(accountId) as { balance: number } | undefined;
-  return round2(r?.balance ?? 0);
+/** Net effect of each account's transactions on its balance, for one user. */
+async function netByAccount(store: Store, userId: string): Promise<Map<string, number>> {
+  const net = new Map<string, number>();
+  for (const t of await store.many("transactions", { user_id: userId })) {
+    net.set(t.account_id, (net.get(t.account_id) ?? 0) + (t.type === "income" ? t.amount : -t.amount));
+  }
+  return net;
 }
 
-function accountView(r: Row) {
+function accountView(r: Row, net: Map<string, number>) {
   return {
     id: r.id, name: r.name, type: r.type, initialBalance: r.initial_balance, archived: !!r.archived,
-    createdAt: r.created_at, balance: accountBalance(r.id),
+    createdAt: r.created_at, balance: round2(r.initial_balance + (net.get(r.id) ?? 0)),
   };
 }
 
-function txView(r: Row) {
-  return {
+/** Transactions with the names of their account and category, in the order given. */
+async function txViews(store: Store, rows: Row[]) {
+  const accounts = new Map((await store.many("accounts", { id: { $in: rows.map((r) => r.account_id) } })).map((a) => [a.id, a.name]));
+  const categories = new Map((await store.many("categories", { id: { $in: rows.map((r) => r.category_id) } })).map((c) => [c.id, c.name]));
+  return rows.map((r) => ({
     id: r.id, type: r.type, amount: r.amount, date: r.date, description: r.description,
-    accountId: r.account_id, accountName: r.account_name, categoryId: r.category_id, categoryName: r.category_name,
+    accountId: r.account_id, accountName: accounts.get(r.account_id), categoryId: r.category_id, categoryName: categories.get(r.category_id),
     createdAt: r.created_at,
-  };
+  }));
 }
 
-function findTx(userId: string, id: string): Row {
-  return db().prepare(`${txSelect} WHERE t.id = ? AND t.user_id = ?`).get(id, userId) as Row;
-}
-
-function budgetCategoryIds(budgetId: string): string[] {
-  return (db().prepare("SELECT category_id FROM budget_categories WHERE budget_id = ?").all(budgetId) as { category_id: string }[])
-    .map((r) => r.category_id);
+async function findTx(store: Store, userId: string, id: string) {
+  const row = await store.one("transactions", { id, user_id: userId });
+  return (await txViews(store, [row as Row]))[0];
 }
 
 function budgetRange(b: Row): { from: string; to: string } {
@@ -148,14 +146,13 @@ function budgetRange(b: Row): { from: string; to: string } {
   return periodRange("this_month");
 }
 
-function budgetView(b: Row) {
+async function budgetView(store: Store, b: Row) {
   const range = budgetRange(b);
+  const categoryIds = (await store.many("budget_categories", { budget_id: b.id })).map((r) => r.category_id);
   const spent = round2(
-    (db().prepare(`
-      SELECT COALESCE(SUM(amount), 0) AS spent FROM transactions
-      WHERE user_id = ? AND type = 'expense' AND date BETWEEN ? AND ?
-        AND category_id IN (SELECT category_id FROM budget_categories WHERE budget_id = ?)`)
-      .get(b.user_id, range.from, range.to, b.id) as { spent: number }).spent,
+    (await store.many("transactions", {
+      user_id: b.user_id, type: "expense", date: { $gte: range.from, $lte: range.to }, category_id: { $in: categoryIds },
+    })).reduce((sum, t) => sum + t.amount, 0),
   );
   const percent = Math.round((spent / b.limit_amount) * 100);
   return {
@@ -165,7 +162,7 @@ function budgetView(b: Row) {
     period: b.period,
     startDate: b.start_date,
     endDate: b.end_date,
-    categoryIds: budgetCategoryIds(b.id),
+    categoryIds,
     spent,
     remaining: round2(Math.max(0, b.limit_amount - spent)),
     overBy: round2(Math.max(0, spent - b.limit_amount)),
@@ -175,8 +172,8 @@ function budgetView(b: Row) {
   };
 }
 
-function goalView(g: Row) {
-  const contributions = db().prepare("SELECT amount, date FROM contributions WHERE goal_id = ?").all(g.id) as { amount: number; date: string }[];
+export async function goalView(store: Store, g: Row) {
+  const contributions = await store.many("contributions", { goal_id: g.id });
   const saved = round2(contributions.reduce((sum, c) => sum + c.amount, 0));
   const remaining = round2(Math.max(0, g.target_amount - saved));
   const progress = Math.min(100, Math.round((saved / g.target_amount) * 100));
@@ -214,15 +211,15 @@ function recurringView(r: Row) {
   };
 }
 
-function assertAccount(userId: string, id?: string | null): void {
-  if (id) owned(db(), "accounts", id, userId);
+async function assertAccount(store: Store, userId: string, id?: string | null): Promise<void> {
+  if (id) await owned(store, "accounts", id, userId);
 }
 
-function assertCategory(userId: string, id: string): void {
-  owned(db(), "categories", id, userId);
+async function assertCategory(store: Store, userId: string, id: string): Promise<void> {
+  await owned(store, "categories", id, userId);
 }
 
-function nextOccurrence(date: string, frequency: string): string {
+export function nextOccurrence(date: string, frequency: string): string {
   const d = new Date(`${date}T00:00:00Z`);
   if (frequency === "weekly") d.setUTCDate(d.getUTCDate() + 7);
   else if (frequency === "yearly") d.setUTCFullYear(d.getUTCFullYear() + 1);
@@ -230,373 +227,419 @@ function nextOccurrence(date: string, frequency: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-function setBudgetCategories(budgetId: string, userId: string, categoryIds: string[]): void {
-  db().prepare("DELETE FROM budget_categories WHERE budget_id = ?").run(budgetId);
-  for (const categoryId of categoryIds) {
-    assertCategory(userId, categoryId);
-    db().prepare("INSERT INTO budget_categories (budget_id, category_id) VALUES (?, ?)").run(budgetId, categoryId);
+/** Checks every category first, then replaces the budget's links, so a bad id changes nothing. */
+async function setBudgetCategories(store: Store, budgetId: string, userId: string, categoryIds: string[]): Promise<void> {
+  for (const categoryId of categoryIds) await assertCategory(store, userId, categoryId);
+  await store.remove("budget_categories", { budget_id: budgetId });
+  if (categoryIds.length > 0) {
+    await store.insert("budget_categories", categoryIds.map((category_id) => ({ budget_id: budgetId, category_id })));
   }
 }
 
-const listBudgetViews = (userId: string) =>
-  (db().prepare("SELECT * FROM budgets WHERE user_id = ? ORDER BY created_at").all(userId) as Row[]).map((b) => budgetView(b));
+export async function listBudgetViews(store: Store, userId: string) {
+  const budgets = await store.many("budgets", { user_id: userId }, { sort: { created_at: 1 } });
+  return Promise.all(budgets.map((b) => budgetView(store, b)));
+}
 
 // ---- Routes ---------------------------------------------------------------------
 
 export const financeRoutes: Route[] = [
   // Accounts
-  route("GET", "accounts", (ctx) =>
-    (db().prepare("SELECT * FROM accounts WHERE user_id = ? ORDER BY created_at").all(ctx.user.id) as Row[]).map(accountView)),
+  route("GET", "accounts", async (ctx) => {
+    const store = await db();
+    const net = await netByAccount(store, ctx.user.id);
+    return (await store.many("accounts", { user_id: ctx.user.id }, { sort: { created_at: 1 } })).map((a) => accountView(a, net));
+  }),
   route("POST", "accounts", async (ctx) => {
     const dto = await ctx.body(accountSchema);
+    const store = await db();
     const id = newId();
-    db().prepare("INSERT INTO accounts (id, user_id, name, type, initial_balance, created_at) VALUES (?, ?, ?, ?, ?, ?)")
-      .run(id, ctx.user.id, dto.name.trim(), dto.type, round2(dto.initialBalance), nowIso());
-    return accountView(owned(db(), "accounts", id, ctx.user.id));
+    await store.insert("accounts", {
+      id, user_id: ctx.user.id, name: dto.name.trim(), type: dto.type, initial_balance: round2(dto.initialBalance), archived: false, created_at: nowIso(),
+    });
+    return accountView(await owned(store, "accounts", id, ctx.user.id), await netByAccount(store, ctx.user.id));
   }),
-  route("GET", "accounts/:id", (ctx) => accountView(owned(db(), "accounts", ctx.params.id, ctx.user.id))),
+  route("GET", "accounts/:id", async (ctx) => {
+    const store = await db();
+    const account = await owned(store, "accounts", ctx.params.id, ctx.user.id);
+    return accountView(account, await netByAccount(store, ctx.user.id));
+  }),
   route("PATCH", "accounts/:id", async (ctx) => {
     const dto = await ctx.body(accountUpdateSchema);
-    owned(db(), "accounts", ctx.params.id, ctx.user.id);
-    db().prepare("UPDATE accounts SET name = COALESCE(?, name), type = COALESCE(?, type) WHERE id = ?")
-      .run(dto.name?.trim() ?? null, dto.type ?? null, ctx.params.id);
-    return accountView(owned(db(), "accounts", ctx.params.id, ctx.user.id));
+    const store = await db();
+    await owned(store, "accounts", ctx.params.id, ctx.user.id);
+    await store.update("accounts", { id: ctx.params.id }, defined({ name: dto.name?.trim(), type: dto.type }));
+    return accountView(await owned(store, "accounts", ctx.params.id, ctx.user.id), await netByAccount(store, ctx.user.id));
   }),
   /** Archiving keeps history but removes the account from active totals. */
-  route("POST", "accounts/:id/archive", (ctx) => {
-    owned(db(), "accounts", ctx.params.id, ctx.user.id);
-    db().prepare("UPDATE accounts SET archived = 1 WHERE id = ?").run(ctx.params.id);
+  route("POST", "accounts/:id/archive", async (ctx) => {
+    const store = await db();
+    await owned(store, "accounts", ctx.params.id, ctx.user.id);
+    await store.update("accounts", { id: ctx.params.id }, { archived: true });
     return { archived: true };
   }),
-  /** Deletes the account and, through ON DELETE CASCADE, its transactions. */
-  route("DELETE", "accounts/:id", (ctx) => {
-    owned(db(), "accounts", ctx.params.id, ctx.user.id);
-    db().prepare("DELETE FROM accounts WHERE id = ?").run(ctx.params.id);
+  /** Deletes the account with its transactions and recurring items. */
+  route("DELETE", "accounts/:id", async (ctx) => {
+    const store = await db();
+    await owned(store, "accounts", ctx.params.id, ctx.user.id);
+    await removeAccount(store, ctx.params.id);
   }, { status: 204 }),
 
   // Categories
-  route("GET", "categories", (ctx) =>
-    (db().prepare("SELECT id, name, archived FROM categories WHERE user_id = ? ORDER BY name").all(ctx.user.id) as Row[])
-      .map((c) => ({ ...c, archived: !!c.archived }))),
+  route("GET", "categories", async (ctx) =>
+    (await (await db()).many("categories", { user_id: ctx.user.id }, { sort: { name: 1 } }))
+      .map((c) => ({ id: c.id, name: c.name, archived: !!c.archived }))),
   route("POST", "categories", async (ctx) => {
     const dto = await ctx.body(categorySchema);
     const id = newId();
     try {
-      db().prepare("INSERT INTO categories (id, user_id, name) VALUES (?, ?, ?)").run(id, ctx.user.id, dto.name.trim());
-    } catch {
+      await (await db()).insert("categories", { id, user_id: ctx.user.id, name: dto.name.trim(), archived: false });
+    } catch (err) {
+      if (!isDuplicateKey(err)) throw err;
       throw badRequest("A category with this name already exists");
     }
     return { id, name: dto.name.trim(), archived: false };
   }),
   route("PATCH", "categories/:id", async (ctx) => {
     const dto = await ctx.body(categorySchema);
-    owned(db(), "categories", ctx.params.id, ctx.user.id);
+    const store = await db();
+    await owned(store, "categories", ctx.params.id, ctx.user.id);
     try {
-      db().prepare("UPDATE categories SET name = ? WHERE id = ?").run(dto.name.trim(), ctx.params.id);
-    } catch {
+      await store.update("categories", { id: ctx.params.id }, { name: dto.name.trim() });
+    } catch (err) {
+      if (!isDuplicateKey(err)) throw err;
       throw badRequest("A category with this name already exists");
     }
     return { id: ctx.params.id, name: dto.name.trim() };
   }),
   /** A category in use is archived so past transactions keep their label; an unused one is removed. */
-  route("DELETE", "categories/:id", (ctx) => {
-    owned(db(), "categories", ctx.params.id, ctx.user.id);
-    const used = db().prepare(`
-      SELECT 1 FROM transactions WHERE category_id = ? UNION SELECT 1 FROM budget_categories WHERE category_id = ?
-      UNION SELECT 1 FROM recurring_transactions WHERE category_id = ?`).get(ctx.params.id, ctx.params.id, ctx.params.id);
-    if (used) db().prepare("UPDATE categories SET archived = 1 WHERE id = ?").run(ctx.params.id);
-    else db().prepare("DELETE FROM categories WHERE id = ?").run(ctx.params.id);
+  route("DELETE", "categories/:id", async (ctx) => {
+    const store = await db();
+    await owned(store, "categories", ctx.params.id, ctx.user.id);
+    const categoryId = ctx.params.id;
+    const used = (await store.one("transactions", { category_id: categoryId }))
+      ?? (await store.one("budget_categories", { category_id: categoryId }))
+      ?? (await store.one("recurring_transactions", { category_id: categoryId }));
+    if (used) await store.update("categories", { id: categoryId }, { archived: true });
+    else await store.remove("categories", { id: categoryId });
   }, { status: 204 }),
 
   // Transactions
-  route("GET", "transactions", (ctx) => {
+  route("GET", "transactions", async (ctx) => {
     const q = ctx.query;
-    const where = ["t.user_id = ?"];
-    const params: unknown[] = [ctx.user.id];
-    if (q.get("type")) { where.push("t.type = ?"); params.push(q.get("type")); }
-    if (q.get("accountId")) { where.push("t.account_id = ?"); params.push(q.get("accountId")); }
-    if (q.get("categoryId")) { where.push("t.category_id = ?"); params.push(q.get("categoryId")); }
-    if (q.get("from")) { where.push("t.date >= ?"); params.push(q.get("from")); }
-    if (q.get("to")) { where.push("t.date <= ?"); params.push(q.get("to")); }
+    const store = await db();
+    const filter: Filter = { user_id: ctx.user.id };
+    if (q.get("type")) filter.type = q.get("type");
+    if (q.get("accountId")) filter.account_id = q.get("accountId");
+    if (q.get("categoryId")) filter.category_id = q.get("categoryId");
+    const date: Filter = {};
+    if (q.get("from")) date.$gte = q.get("from");
+    if (q.get("to")) date.$lte = q.get("to");
+    if (Object.keys(date).length > 0) filter.date = date;
     const search = q.get("search")?.trim();
     if (search) {
-      where.push("(LOWER(t.description) LIKE ? OR LOWER(c.name) LIKE ?)");
-      const term = `%${search.toLowerCase()}%`;
-      params.push(term, term);
+      const term = search.toLowerCase();
+      const categoryIds = (await store.many("categories", { user_id: ctx.user.id }))
+        .filter((c) => c.name.toLowerCase().includes(term)).map((c) => c.id);
+      filter.$or = [
+        { description: { $regex: escapeRegex(search), $options: "i" } },
+        { category_id: { $in: categoryIds } },
+      ];
     }
-    const clause = where.join(" AND ");
-    const total = (db().prepare(`SELECT COUNT(*) AS n FROM transactions t JOIN categories c ON c.id = t.category_id WHERE ${clause}`)
-      .get(...params) as { n: number }).n;
+    const total = await store.count("transactions", filter);
     const size = Math.min(200, Math.max(1, Number(q.get("pageSize") ?? 50) || 50));
-    const offset = (Math.max(1, Number(q.get("page") ?? 1) || 1) - 1) * size;
-    const rows = db().prepare(`${txSelect} WHERE ${clause} ORDER BY t.date DESC, t.created_at DESC LIMIT ? OFFSET ?`)
-      .all(...params, size, offset) as Row[];
-    return { items: rows.map(txView), total };
+    const skip = (Math.max(1, Number(q.get("page") ?? 1) || 1) - 1) * size;
+    const rows = await store.many("transactions", filter, { sort: { date: -1, created_at: -1 }, skip, limit: size });
+    return { items: await txViews(store, rows), total };
   }),
   route("POST", "transactions", async (ctx) => {
     const dto = await ctx.body(transactionSchema);
-    assertAccount(ctx.user.id, dto.accountId);
-    assertCategory(ctx.user.id, dto.categoryId);
+    const store = await db();
+    await assertAccount(store, ctx.user.id, dto.accountId);
+    await assertCategory(store, ctx.user.id, dto.categoryId);
     const id = newId();
-    db().prepare(`INSERT INTO transactions (id, user_id, type, amount, date, description, account_id, category_id, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(id, ctx.user.id, dto.type, round2(dto.amount), dto.date.slice(0, 10), dto.description?.trim() ?? "", dto.accountId, dto.categoryId, nowIso());
-    return txView(findTx(ctx.user.id, id));
+    await store.insert("transactions", {
+      id, user_id: ctx.user.id, type: dto.type, amount: round2(dto.amount), date: day(dto.date),
+      description: dto.description?.trim() ?? "", account_id: dto.accountId, category_id: dto.categoryId, created_at: nowIso(),
+    });
+    return findTx(store, ctx.user.id, id);
   }),
-  route("GET", "transactions/:id", (ctx) => {
-    owned(db(), "transactions", ctx.params.id, ctx.user.id);
-    return txView(findTx(ctx.user.id, ctx.params.id));
+  route("GET", "transactions/:id", async (ctx) => {
+    const store = await db();
+    await owned(store, "transactions", ctx.params.id, ctx.user.id);
+    return findTx(store, ctx.user.id, ctx.params.id);
   }),
   route("PATCH", "transactions/:id", async (ctx) => {
     const dto = await ctx.body(transactionUpdateSchema);
+    const store = await db();
     const id = ctx.params.id;
-    owned(db(), "transactions", id, ctx.user.id);
-    assertAccount(ctx.user.id, dto.accountId);
-    if (dto.categoryId) assertCategory(ctx.user.id, dto.categoryId);
-    db().prepare(`UPDATE transactions SET
-        type = COALESCE(?, type), amount = COALESCE(?, amount), date = COALESCE(?, date),
-        description = COALESCE(?, description), account_id = COALESCE(?, account_id), category_id = COALESCE(?, category_id)
-      WHERE id = ?`).run(
-      dto.type ?? null,
-      dto.amount === undefined ? null : round2(dto.amount),
-      dto.date?.slice(0, 10) ?? null,
-      dto.description?.trim() ?? null,
-      dto.accountId ?? null,
-      dto.categoryId ?? null,
-      id,
-    );
-    return txView(findTx(ctx.user.id, id));
+    await owned(store, "transactions", id, ctx.user.id);
+    await assertAccount(store, ctx.user.id, dto.accountId);
+    if (dto.categoryId) await assertCategory(store, ctx.user.id, dto.categoryId);
+    await store.update("transactions", { id }, defined({
+      type: dto.type,
+      amount: roundIfSet(dto.amount),
+      date: dto.date ? day(dto.date) : undefined,
+      description: dto.description?.trim(),
+      account_id: dto.accountId,
+      category_id: dto.categoryId,
+    }));
+    return findTx(store, ctx.user.id, id);
   }),
-  route("DELETE", "transactions/:id", (ctx) => {
-    owned(db(), "transactions", ctx.params.id, ctx.user.id);
-    db().prepare("DELETE FROM transactions WHERE id = ?").run(ctx.params.id);
+  route("DELETE", "transactions/:id", async (ctx) => {
+    const store = await db();
+    await owned(store, "transactions", ctx.params.id, ctx.user.id);
+    await store.remove("transactions", { id: ctx.params.id });
   }, { status: 204 }),
 
   // Recurring transactions: listed and confirmable, never created automatically
-  route("GET", "recurring", (ctx) =>
-    (db().prepare("SELECT * FROM recurring_transactions WHERE user_id = ? ORDER BY next_date").all(ctx.user.id) as Row[]).map(recurringView)),
+  route("GET", "recurring", async (ctx) =>
+    (await (await db()).many("recurring_transactions", { user_id: ctx.user.id }, { sort: { next_date: 1 } })).map(recurringView)),
   route("POST", "recurring", async (ctx) => {
     const dto = await ctx.body(recurringSchema);
-    assertAccount(ctx.user.id, dto.accountId);
-    assertCategory(ctx.user.id, dto.categoryId);
+    const store = await db();
+    await assertAccount(store, ctx.user.id, dto.accountId);
+    await assertCategory(store, ctx.user.id, dto.categoryId);
     const id = newId();
-    db().prepare(`INSERT INTO recurring_transactions
-      (id, user_id, type, amount, description, account_id, category_id, frequency, next_date, active, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`)
-      .run(id, ctx.user.id, dto.type, round2(dto.amount), dto.description?.trim() ?? "", dto.accountId, dto.categoryId, dto.frequency, dto.nextDate.slice(0, 10), nowIso());
-    return recurringView(owned(db(), "recurring_transactions", id, ctx.user.id));
+    await store.insert("recurring_transactions", {
+      id, user_id: ctx.user.id, type: dto.type, amount: round2(dto.amount), description: dto.description?.trim() ?? "",
+      account_id: dto.accountId, category_id: dto.categoryId, frequency: dto.frequency, next_date: day(dto.nextDate), active: true, created_at: nowIso(),
+    });
+    return recurringView(await owned(store, "recurring_transactions", id, ctx.user.id));
   }),
   route("PATCH", "recurring/:id", async (ctx) => {
     const dto = await ctx.body(recurringUpdateSchema);
-    owned(db(), "recurring_transactions", ctx.params.id, ctx.user.id);
-    db().prepare(`UPDATE recurring_transactions SET
-        active = COALESCE(?, active), frequency = COALESCE(?, frequency), next_date = COALESCE(?, next_date),
-        amount = COALESCE(?, amount), description = COALESCE(?, description)
-      WHERE id = ?`).run(
-      dto.active === undefined ? null : dto.active ? 1 : 0,
-      dto.frequency ?? null,
-      dto.nextDate?.slice(0, 10) ?? null,
-      dto.amount === undefined ? null : round2(dto.amount),
-      dto.description?.trim() ?? null,
-      ctx.params.id,
-    );
-    return recurringView(owned(db(), "recurring_transactions", ctx.params.id, ctx.user.id));
+    const store = await db();
+    await owned(store, "recurring_transactions", ctx.params.id, ctx.user.id);
+    await store.update("recurring_transactions", { id: ctx.params.id }, defined({
+      active: dto.active,
+      frequency: dto.frequency,
+      next_date: dto.nextDate ? day(dto.nextDate) : undefined,
+      amount: roundIfSet(dto.amount),
+      description: dto.description?.trim(),
+    }));
+    return recurringView(await owned(store, "recurring_transactions", ctx.params.id, ctx.user.id));
   }),
   /** Confirms one occurrence: creates the transaction and moves the schedule forward. Nothing is automatic. */
-  route("POST", "recurring/:id/confirm", (ctx) => {
-    const r = owned(db(), "recurring_transactions", ctx.params.id, ctx.user.id);
+  route("POST", "recurring/:id/confirm", async (ctx) => {
+    const store = await db();
+    const r = await owned(store, "recurring_transactions", ctx.params.id, ctx.user.id);
     const txId = newId();
-    db().transaction(() => {
-      db().prepare(`INSERT INTO transactions (id, user_id, type, amount, date, description, account_id, category_id, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(txId, ctx.user.id, r.type, r.amount, r.next_date, r.description, r.account_id, r.category_id, nowIso());
-      db().prepare("UPDATE recurring_transactions SET next_date = ? WHERE id = ?").run(nextOccurrence(r.next_date, r.frequency), ctx.params.id);
-    })();
-    return txView(findTx(ctx.user.id, txId));
+    await store.insert("transactions", {
+      id: txId, user_id: ctx.user.id, type: r.type, amount: r.amount, date: r.next_date, description: r.description,
+      account_id: r.account_id, category_id: r.category_id, created_at: nowIso(),
+    });
+    await store.update("recurring_transactions", { id: ctx.params.id }, { next_date: nextOccurrence(r.next_date, r.frequency) });
+    return findTx(store, ctx.user.id, txId);
   }),
-  route("DELETE", "recurring/:id", (ctx) => {
-    owned(db(), "recurring_transactions", ctx.params.id, ctx.user.id);
-    db().prepare("DELETE FROM recurring_transactions WHERE id = ?").run(ctx.params.id);
+  route("DELETE", "recurring/:id", async (ctx) => {
+    const store = await db();
+    await owned(store, "recurring_transactions", ctx.params.id, ctx.user.id);
+    await store.remove("recurring_transactions", { id: ctx.params.id });
   }, { status: 204 }),
 
   // Budgets
-  route("GET", "budgets", (ctx) => listBudgetViews(ctx.user.id)),
+  route("GET", "budgets", async (ctx) => listBudgetViews(await db(), ctx.user.id)),
   route("POST", "budgets", async (ctx) => {
     const dto = await ctx.body(budgetSchema);
+    const store = await db();
+    for (const categoryId of dto.categoryIds) await assertCategory(store, ctx.user.id, categoryId);
     const id = newId();
-    db().transaction(() => {
-      db().prepare(`INSERT INTO budgets (id, user_id, name, limit_amount, period, start_date, end_date, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-        .run(id, ctx.user.id, dto.name.trim(), round2(dto.limit), dto.period, dto.startDate?.slice(0, 10) ?? null, dto.endDate?.slice(0, 10) ?? null, nowIso());
-      setBudgetCategories(id, ctx.user.id, dto.categoryIds);
-    })();
-    return budgetView(owned(db(), "budgets", id, ctx.user.id));
+    await store.insert("budgets", {
+      id, user_id: ctx.user.id, name: dto.name.trim(), limit_amount: round2(dto.limit), period: dto.period,
+      start_date: dto.startDate ? day(dto.startDate) : null, end_date: dto.endDate ? day(dto.endDate) : null, created_at: nowIso(),
+    });
+    await setBudgetCategories(store, id, ctx.user.id, dto.categoryIds);
+    return budgetView(store, await owned(store, "budgets", id, ctx.user.id));
   }),
-  route("GET", "budgets/:id", (ctx) => budgetView(owned(db(), "budgets", ctx.params.id, ctx.user.id))),
+  route("GET", "budgets/:id", async (ctx) => {
+    const store = await db();
+    return budgetView(store, await owned(store, "budgets", ctx.params.id, ctx.user.id));
+  }),
   route("PATCH", "budgets/:id", async (ctx) => {
     const dto = await ctx.body(budgetUpdateSchema);
+    const store = await db();
     const id = ctx.params.id;
-    owned(db(), "budgets", id, ctx.user.id);
-    db().transaction(() => {
-      db().prepare(`UPDATE budgets SET
-          name = COALESCE(?, name), limit_amount = COALESCE(?, limit_amount), period = COALESCE(?, period),
-          start_date = COALESCE(?, start_date), end_date = COALESCE(?, end_date)
-        WHERE id = ?`).run(
-        dto.name?.trim() ?? null, dto.limit === undefined ? null : round2(dto.limit), dto.period ?? null,
-        dto.startDate?.slice(0, 10) ?? null, dto.endDate?.slice(0, 10) ?? null, id,
-      );
-      if (dto.categoryIds) setBudgetCategories(id, ctx.user.id, dto.categoryIds);
-    })();
-    return budgetView(owned(db(), "budgets", id, ctx.user.id));
+    await owned(store, "budgets", id, ctx.user.id);
+    await store.update("budgets", { id }, defined({
+      name: dto.name?.trim(),
+      limit_amount: roundIfSet(dto.limit),
+      period: dto.period,
+      start_date: dto.startDate ? day(dto.startDate) : undefined,
+      end_date: dto.endDate ? day(dto.endDate) : undefined,
+    }));
+    if (dto.categoryIds) await setBudgetCategories(store, id, ctx.user.id, dto.categoryIds);
+    return budgetView(store, await owned(store, "budgets", id, ctx.user.id));
   }),
-  route("DELETE", "budgets/:id", (ctx) => {
-    owned(db(), "budgets", ctx.params.id, ctx.user.id);
-    db().prepare("DELETE FROM budgets WHERE id = ?").run(ctx.params.id);
+  route("DELETE", "budgets/:id", async (ctx) => {
+    const store = await db();
+    await owned(store, "budgets", ctx.params.id, ctx.user.id);
+    await removeBudget(store, ctx.params.id);
   }, { status: 204 }),
 
   // Bills and scheduled payments
-  route("GET", "bills", (ctx) =>
-    (db().prepare("SELECT * FROM bills WHERE user_id = ? ORDER BY due_date").all(ctx.user.id) as Row[]).map(billView)),
+  route("GET", "bills", async (ctx) =>
+    (await (await db()).many("bills", { user_id: ctx.user.id }, { sort: { due_date: 1 } })).map(billView)),
   route("POST", "bills", async (ctx) => {
     const dto = await ctx.body(billSchema);
-    assertAccount(ctx.user.id, dto.accountId);
+    const store = await db();
+    await assertAccount(store, ctx.user.id, dto.accountId);
     const id = newId();
-    db().prepare(`INSERT INTO bills (id, user_id, name, amount, due_date, kind, status, account_id, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, 'upcoming', ?, ?)`)
-      .run(id, ctx.user.id, dto.name.trim(), round2(dto.amount), dto.dueDate.slice(0, 10), dto.kind, dto.accountId ?? null, nowIso());
-    return billView(owned(db(), "bills", id, ctx.user.id));
+    await store.insert("bills", {
+      id, user_id: ctx.user.id, name: dto.name.trim(), amount: round2(dto.amount), due_date: day(dto.dueDate), kind: dto.kind,
+      status: "upcoming", account_id: dto.accountId ?? null, created_at: nowIso(),
+    });
+    return billView(await owned(store, "bills", id, ctx.user.id));
   }),
   route("PATCH", "bills/:id", async (ctx) => {
     const dto = await ctx.body(billUpdateSchema);
-    owned(db(), "bills", ctx.params.id, ctx.user.id);
-    db().prepare(`UPDATE bills SET name = COALESCE(?, name), amount = COALESCE(?, amount),
-        due_date = COALESCE(?, due_date), kind = COALESCE(?, kind) WHERE id = ?`)
-      .run(dto.name?.trim() ?? null, dto.amount === undefined ? null : round2(dto.amount), dto.dueDate?.slice(0, 10) ?? null, dto.kind ?? null, ctx.params.id);
-    return billView(owned(db(), "bills", ctx.params.id, ctx.user.id));
+    const store = await db();
+    await owned(store, "bills", ctx.params.id, ctx.user.id);
+    await store.update("bills", { id: ctx.params.id }, defined({
+      name: dto.name?.trim(), amount: roundIfSet(dto.amount), due_date: dto.dueDate ? day(dto.dueDate) : undefined, kind: dto.kind,
+    }));
+    return billView(await owned(store, "bills", ctx.params.id, ctx.user.id));
   }),
   /** Only records the status: Saviny never initiates a payment. */
-  route("POST", "bills/:id/mark-paid", (ctx) => {
-    owned(db(), "bills", ctx.params.id, ctx.user.id);
-    db().prepare("UPDATE bills SET status = 'paid' WHERE id = ?").run(ctx.params.id);
-    return billView(owned(db(), "bills", ctx.params.id, ctx.user.id));
+  route("POST", "bills/:id/mark-paid", async (ctx) => {
+    const store = await db();
+    await owned(store, "bills", ctx.params.id, ctx.user.id);
+    await store.update("bills", { id: ctx.params.id }, { status: "paid" });
+    return billView(await owned(store, "bills", ctx.params.id, ctx.user.id));
   }),
-  route("DELETE", "bills/:id", (ctx) => {
-    owned(db(), "bills", ctx.params.id, ctx.user.id);
-    db().prepare("DELETE FROM bills WHERE id = ?").run(ctx.params.id);
+  route("DELETE", "bills/:id", async (ctx) => {
+    const store = await db();
+    await owned(store, "bills", ctx.params.id, ctx.user.id);
+    await store.remove("bills", { id: ctx.params.id });
   }, { status: 204 }),
 
   // Savings goals
-  route("GET", "goals", (ctx) => {
+  route("GET", "goals", async (ctx) => {
+    const store = await db();
     const status = ctx.query.get("status");
-    const rows = status
-      ? (db().prepare("SELECT * FROM goals WHERE user_id = ? AND status = ? ORDER BY created_at").all(ctx.user.id, status) as Row[])
-      : (db().prepare("SELECT * FROM goals WHERE user_id = ? ORDER BY created_at").all(ctx.user.id) as Row[]);
-    return rows.map(goalView);
+    const goals = await store.many("goals", status ? { user_id: ctx.user.id, status } : { user_id: ctx.user.id }, { sort: { created_at: 1 } });
+    return Promise.all(goals.map((g) => goalView(store, g)));
   }),
   route("POST", "goals", async (ctx) => {
     const dto = await ctx.body(goalSchema);
+    const store = await db();
     const id = newId();
-    db().prepare(`INSERT INTO goals (id, user_id, title, description, target_amount, target_date, status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, 'active', ?)`)
-      .run(id, ctx.user.id, dto.title.trim(), dto.description?.trim() ?? "", round2(dto.targetAmount), dto.targetDate?.slice(0, 10) ?? null, nowIso());
-    return goalView(owned(db(), "goals", id, ctx.user.id));
+    await store.insert("goals", {
+      id, user_id: ctx.user.id, title: dto.title.trim(), description: dto.description?.trim() ?? "", target_amount: round2(dto.targetAmount),
+      target_date: dto.targetDate ? day(dto.targetDate) : null, status: "active", created_at: nowIso(),
+    });
+    return goalView(store, await owned(store, "goals", id, ctx.user.id));
   }),
-  route("GET", "goals/:id", (ctx) => goalView(owned(db(), "goals", ctx.params.id, ctx.user.id))),
+  route("GET", "goals/:id", async (ctx) => {
+    const store = await db();
+    return goalView(store, await owned(store, "goals", ctx.params.id, ctx.user.id));
+  }),
   route("PATCH", "goals/:id", async (ctx) => {
     const dto = await ctx.body(goalUpdateSchema);
-    owned(db(), "goals", ctx.params.id, ctx.user.id);
-    db().prepare(`UPDATE goals SET title = COALESCE(?, title), description = COALESCE(?, description),
-        target_amount = COALESCE(?, target_amount), target_date = COALESCE(?, target_date) WHERE id = ?`)
-      .run(dto.title?.trim() ?? null, dto.description?.trim() ?? null, dto.targetAmount === undefined ? null : round2(dto.targetAmount),
-        dto.targetDate?.slice(0, 10) ?? null, ctx.params.id);
-    return goalView(owned(db(), "goals", ctx.params.id, ctx.user.id));
+    const store = await db();
+    await owned(store, "goals", ctx.params.id, ctx.user.id);
+    await store.update("goals", { id: ctx.params.id }, defined({
+      title: dto.title?.trim(),
+      description: dto.description?.trim(),
+      target_amount: roundIfSet(dto.targetAmount),
+      target_date: dto.targetDate ? day(dto.targetDate) : undefined,
+    }));
+    return goalView(store, await owned(store, "goals", ctx.params.id, ctx.user.id));
   }),
-  route("POST", "goals/:id/archive", (ctx) => {
-    owned(db(), "goals", ctx.params.id, ctx.user.id);
-    db().prepare("UPDATE goals SET status = 'archived' WHERE id = ?").run(ctx.params.id);
+  route("POST", "goals/:id/archive", async (ctx) => {
+    const store = await db();
+    await owned(store, "goals", ctx.params.id, ctx.user.id);
+    await store.update("goals", { id: ctx.params.id }, { status: "archived" });
     return { status: "archived" };
   }),
-  route("DELETE", "goals/:id", (ctx) => {
-    owned(db(), "goals", ctx.params.id, ctx.user.id);
-    db().prepare("DELETE FROM goals WHERE id = ?").run(ctx.params.id);
+  route("DELETE", "goals/:id", async (ctx) => {
+    const store = await db();
+    await owned(store, "goals", ctx.params.id, ctx.user.id);
+    await removeGoal(store, ctx.params.id);
   }, { status: 204 }),
-  route("GET", "goals/:id/contributions", (ctx) => {
-    owned(db(), "goals", ctx.params.id, ctx.user.id);
-    return (db().prepare("SELECT * FROM contributions WHERE goal_id = ? ORDER BY date DESC, created_at DESC").all(ctx.params.id) as Row[])
+  route("GET", "goals/:id/contributions", async (ctx) => {
+    const store = await db();
+    await owned(store, "goals", ctx.params.id, ctx.user.id);
+    return (await store.many("contributions", { goal_id: ctx.params.id }, { sort: { date: -1, created_at: -1 } }))
       .map((c) => ({ id: c.id, goalId: c.goal_id, amount: c.amount, date: c.date, note: c.note }));
   }),
   route("POST", "goals/:id/contributions", async (ctx) => {
     const dto = await ctx.body(contributionSchema);
-    const goal = owned(db(), "goals", ctx.params.id, ctx.user.id);
+    const store = await db();
+    const goal = await owned(store, "goals", ctx.params.id, ctx.user.id);
     if (goal.status !== "active") throw badRequest("Only active goals accept contributions");
     const contributionId = newId();
-    db().prepare("INSERT INTO contributions (id, user_id, goal_id, amount, date, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
-      .run(contributionId, ctx.user.id, ctx.params.id, round2(dto.amount), dto.date.slice(0, 10), dto.note?.trim() ?? "", nowIso());
-    return { contributionId, goal: goalView(goal) };
+    await store.insert("contributions", {
+      id: contributionId, user_id: ctx.user.id, goal_id: ctx.params.id, amount: round2(dto.amount), date: day(dto.date),
+      note: dto.note?.trim() ?? "", created_at: nowIso(),
+    });
+    return { contributionId, goal: await goalView(store, goal) };
   }),
   route("PATCH", "contributions/:id", async (ctx) => {
     const dto = await ctx.body(contributionSchema);
-    owned(db(), "contributions", ctx.params.id, ctx.user.id);
-    db().prepare("UPDATE contributions SET amount = ?, date = ?, note = COALESCE(?, note) WHERE id = ?")
-      .run(round2(dto.amount), dto.date.slice(0, 10), dto.note?.trim() ?? null, ctx.params.id);
+    const store = await db();
+    await owned(store, "contributions", ctx.params.id, ctx.user.id);
+    await store.update("contributions", { id: ctx.params.id }, defined({
+      amount: round2(dto.amount), date: day(dto.date), note: dto.note?.trim(),
+    }));
     return { id: ctx.params.id };
   }),
-  route("DELETE", "contributions/:id", (ctx) => {
-    owned(db(), "contributions", ctx.params.id, ctx.user.id);
-    db().prepare("DELETE FROM contributions WHERE id = ?").run(ctx.params.id);
+  route("DELETE", "contributions/:id", async (ctx) => {
+    const store = await db();
+    await owned(store, "contributions", ctx.params.id, ctx.user.id);
+    await store.remove("contributions", { id: ctx.params.id });
   }, { status: 204 }),
 
   // Dashboard
-  route("GET", "dashboard", (ctx) => dashboard(ctx)),
+  route("GET", "dashboard", async (ctx) => dashboardFor(await db(), ctx.user.id, ctx.query.get("period") ?? "this_month")),
 ];
 
-function dashboard(ctx: Ctx) {
-  const userId = ctx.user.id;
-  const period = ctx.query.get("period") ?? "this_month";
+/** The dashboard figures for one user and period. The AI assistants read the same numbers the screens show. */
+export async function dashboardFor(store: Store, userId: string, period: string) {
   const range = periodRange(period);
-  const sum = (type: string) => round2(
-    (db().prepare("SELECT COALESCE(SUM(amount), 0) AS s FROM transactions WHERE user_id = ? AND type = ? AND date BETWEEN ? AND ?")
-      .get(userId, type, range.from, range.to) as { s: number }).s,
-  );
-  const count = (type: string) =>
-    (db().prepare("SELECT COUNT(*) AS n FROM transactions WHERE user_id = ? AND type = ? AND date BETWEEN ? AND ?")
-      .get(userId, type, range.from, range.to) as { n: number }).n;
 
+  const accounts = await store.many("accounts", { user_id: userId });
+  const activeIds = new Set(accounts.filter((a) => !a.archived).map((a) => a.id));
+  const transactions = await store.many("transactions", { user_id: userId });
+  const inRange = transactions.filter((t) => t.date >= range.from && t.date <= range.to);
+
+  const sum = (type: string) => round2(inRange.filter((t) => t.type === type).reduce((s, t) => s + t.amount, 0));
+  const count = (type: string) => inRange.filter((t) => t.type === type).length;
+
+  const net = await netByAccount(store, userId);
   const balance = round2(
-    (db().prepare(`
-      SELECT COALESCE(SUM(a.initial_balance), 0) + COALESCE((
-        SELECT SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE -t.amount END)
-        FROM transactions t JOIN accounts a2 ON a2.id = t.account_id
-        WHERE a2.user_id = ? AND a2.archived = 0), 0) AS balance
-      FROM accounts a WHERE a.user_id = ? AND a.archived = 0`).get(userId, userId) as { balance: number }).balance,
+    accounts.filter((a) => activeIds.has(a.id)).reduce((s, a) => s + a.initial_balance, 0)
+    + [...net].filter(([accountId]) => activeIds.has(accountId)).reduce((s, [, value]) => s + value, 0),
   );
-  const activeAccounts = (db().prepare("SELECT COUNT(*) AS n FROM accounts WHERE user_id = ? AND archived = 0").get(userId) as { n: number }).n;
 
   const income = sum("income");
   const expenses = sum("expense");
-  const byCategory = (db().prepare(`
-    SELECT t.category_id AS categoryId, c.name AS name, SUM(t.amount) AS amount
-    FROM transactions t JOIN categories c ON c.id = t.category_id
-    WHERE t.user_id = ? AND t.type = 'expense' AND t.date BETWEEN ? AND ?
-    GROUP BY t.category_id ORDER BY amount DESC`).all(userId, range.from, range.to) as { categoryId: string; name: string; amount: number }[])
-    .map((c) => ({ ...c, amount: round2(c.amount), percent: expenses ? Math.round((c.amount / expenses) * 100) : 0 }));
+  const categoryNames = new Map((await store.many("categories", { user_id: userId })).map((c) => [c.id, c.name]));
+  const spendByCategory = new Map<string, number>();
+  for (const t of inRange) {
+    if (t.type !== "expense") continue;
+    spendByCategory.set(t.category_id, (spendByCategory.get(t.category_id) ?? 0) + t.amount);
+  }
+  const byCategory = [...spendByCategory]
+    .map(([categoryId, amount]) => ({
+      categoryId, name: categoryNames.get(categoryId), amount: round2(amount),
+      percent: expenses ? Math.round((amount / expenses) * 100) : 0,
+    }))
+    .sort((a, b) => b.amount - a.amount);
 
-  const flow = db().prepare("SELECT date, type, amount FROM transactions WHERE user_id = ? AND date BETWEEN ? AND ?")
-    .all(userId, range.from, range.to) as { date: string; type: string; amount: number }[];
   const start = new Date(`${range.from}T00:00:00Z`).getTime();
   const weeklyFlow = [0, 1, 2, 3].map((i) => ({ label: `Week ${i + 1}`, income: 0, expenses: 0 }));
-  for (const t of flow) {
+  for (const t of inRange) {
     const bucket = weeklyFlow[Math.min(3, Math.max(0, Math.floor((new Date(`${t.date}T00:00:00Z`).getTime() - start) / (7 * DAY_MS))))];
     if (t.type === "income") bucket.income = round2(bucket.income + t.amount);
     else bucket.expenses = round2(bucket.expenses + t.amount);
   }
 
-  const budgets = listBudgetViews(userId);
-  const goals = (db().prepare("SELECT * FROM goals WHERE user_id = ? AND status = 'active' ORDER BY created_at").all(userId) as Row[])
-    .map(goalView);
-  const upcomingBills = (db().prepare("SELECT * FROM bills WHERE user_id = ? AND status = 'upcoming' ORDER BY due_date LIMIT 5").all(userId) as Row[])
-    .map(billView);
-  const recentTransactions = (db().prepare(`${txSelect} WHERE t.user_id = ? ORDER BY t.date DESC, t.created_at DESC LIMIT 5`)
-    .all(userId) as Row[]).map(txView);
+  const budgets = await listBudgetViews(store, userId);
+  const activeGoals = await store.many("goals", { user_id: userId, status: "active" }, { sort: { created_at: 1 } });
+  const goals = await Promise.all(activeGoals.map((g) => goalView(store, g)));
+  const upcomingBills = (await store.many("bills", { user_id: userId, status: "upcoming" }, { sort: { due_date: 1 }, limit: 5 })).map(billView);
+  const recentTransactions = await txViews(store, await store.many("transactions", { user_id: userId }, { sort: { date: -1, created_at: -1 }, limit: 5 }));
 
   const today = isoDate(new Date());
   const in7Days = isoDate(new Date(Date.now() + 7 * DAY_MS));
@@ -620,7 +663,7 @@ function dashboard(ctx: Ctx) {
     income,
     expenses,
     saved: round2(goals.reduce((s, g) => s + g.savedAmount, 0)),
-    activeAccounts,
+    activeAccounts: activeIds.size,
     activeGoals: goals.length,
     incomeCount: count("income"),
     expenseCount: count("expense"),
@@ -633,4 +676,3 @@ function dashboard(ctx: Ctx) {
     alerts,
   };
 }
-

@@ -1,12 +1,14 @@
 import { randomBytes } from "node:crypto";
 import { context } from "../context";
 import { HttpError, notFound } from "../common/errors";
-import { DEFAULT_CATEGORIES, moderatorEmails } from "../common/domain";
+import { moderatorEmails, newUser } from "../common/domain";
 import { toUser } from "../common/mappers";
-import { hashPassword, newId, newToken, nowIso, sha256 } from "../common/security";
+import { newId, newToken, nowIso, sha256 } from "../common/security";
+import type { Store } from "../database/store";
 import type { Row } from "../database/types";
 import { route, type Route } from "../http/types";
 import { openSession } from "./auth";
+import { DEFAULT_CATEGORIES } from "../common/domain";
 
 type Provider = "google" | "github";
 const PROVIDERS: Provider[] = ["google", "github"];
@@ -30,8 +32,6 @@ class OAuthError extends Error {
     super(reason);
   }
 }
-
-const db = () => context().db;
 
 function parseProvider(value: string): Provider {
   if (!PROVIDERS.includes(value as Provider)) throw notFound();
@@ -144,26 +144,20 @@ function names(parts: string[], fallback: string): [string, string] {
 }
 
 /** One account per person: a known provider identity, then a verified email match, otherwise a new account. */
-function linkOrCreate(profile: Profile): string {
-  const existing = db().prepare("SELECT user_id FROM oauth_identities WHERE provider = ? AND provider_user_id = ?")
-    .get(profile.provider, profile.providerUserId) as { user_id: string } | undefined;
+async function linkOrCreate(store: Store, profile: Profile): Promise<string> {
+  const existing = await store.one("oauth_identities", { provider: profile.provider, provider_user_id: profile.providerUserId });
   if (existing) return existing.user_id;
 
-  let userId: string | undefined = (db().prepare("SELECT id FROM users WHERE email = ? COLLATE NOCASE").get(profile.email) as { id: string } | undefined)?.id;
-  db().transaction(() => {
-    if (!userId) {
-      userId = newId();
-      const role = moderatorEmails().includes(profile.email) ? "moderator" : "member";
-      // Provider accounts have no password. The random hash means password login cannot succeed for them.
-      db().prepare("INSERT INTO users (id, first_name, last_name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
-        .run(userId, profile.firstName, profile.lastName, profile.email, passwordPlaceholder(), role, nowIso());
-      const insertCategory = db().prepare("INSERT INTO categories (id, user_id, name) VALUES (?, ?, ?)");
-      for (const name of DEFAULT_CATEGORIES) insertCategory.run(newId(), userId, name);
-    }
-    db().prepare("INSERT INTO oauth_identities (provider, provider_user_id, user_id, email, created_at) VALUES (?, ?, ?, ?, ?)")
-      .run(profile.provider, profile.providerUserId, userId, profile.email, nowIso());
-  })();
-  return userId!;
+  let user = await store.one("users", { email: profile.email });
+  if (!user) {
+    // Provider accounts have no password. The random hash means password login cannot succeed for them.
+    const role = moderatorEmails().includes(profile.email) ? "moderator" : "member";
+    user = newUser({ firstName: profile.firstName, lastName: profile.lastName, email: profile.email, passwordHash: passwordPlaceholder(), role });
+    await store.insert("users", user);
+    await store.insert("categories", DEFAULT_CATEGORIES.map((name) => ({ id: newId(), user_id: user!.id, name, archived: false })));
+  }
+  await store.insert("oauth_identities", { provider: profile.provider, provider_user_id: profile.providerUserId, user_id: user.id, email: profile.email, created_at: nowIso() });
+  return user.id;
 }
 
 /** A hash nobody knows, so the column stays NOT NULL without making a password usable. */
@@ -171,27 +165,27 @@ function passwordPlaceholder(): string {
   return `oauth$${randomBytes(32).toString("base64url")}`;
 }
 
-function purgeExpired(): void {
+async function purgeExpired(store: Store): Promise<void> {
   const now = nowIso();
-  db().prepare("DELETE FROM oauth_states WHERE expires_at < ?").run(now);
-  db().prepare("DELETE FROM login_handoffs WHERE expires_at < ?").run(now);
+  await store.remove("oauth_states", { expires_at: { $lt: now } });
+  await store.remove("login_handoffs", { expires_at: { $lt: now } });
 }
 
-function start(provider: Provider): Response {
+async function start(provider: Provider): Promise<Response> {
   const creds = credentials(provider);
   if (!creds) return loginRedirect("oauth_error=oauth_unavailable");
-  purgeExpired();
+  const { store } = await context();
+  await purgeExpired(store);
   const state = newToken();
-  db().prepare("INSERT INTO oauth_states (state_hash, provider, expires_at) VALUES (?, ?, ?)")
-    .run(sha256(state), provider, new Date(Date.now() + STATE_TTL_MS).toISOString());
+  await store.insert("oauth_states", { state_hash: sha256(state), provider, expires_at: new Date(Date.now() + STATE_TTL_MS).toISOString() });
   return redirect(authorizeUrl(provider, creds.clientId, state));
 }
 
 /** Consumes the state: it works once, and only for the provider that issued it. */
-function consumeState(provider: Provider, state: string): boolean {
+async function consumeState(store: Store, provider: Provider, state: string): Promise<boolean> {
   const hash = sha256(state);
-  const row = db().prepare("SELECT provider, expires_at FROM oauth_states WHERE state_hash = ?").get(hash) as Row | undefined;
-  db().prepare("DELETE FROM oauth_states WHERE state_hash = ?").run(hash);
+  const row = await store.one("oauth_states", { state_hash: hash });
+  await store.remove("oauth_states", { state_hash: hash });
   return !!row && row.provider === provider && row.expires_at > nowIso();
 }
 
@@ -199,13 +193,13 @@ async function callback(provider: Provider, params: URLSearchParams): Promise<Re
   if (params.get("error")) return loginRedirect("oauth_error=oauth_denied");
   const code = params.get("code");
   const state = params.get("state");
-  if (!code || !state || !consumeState(provider, state)) return loginRedirect("oauth_error=oauth_failed");
+  const { store } = await context();
+  if (!code || !state || !(await consumeState(store, provider, state))) return loginRedirect("oauth_error=oauth_failed");
 
   try {
-    const userId = linkOrCreate(await fetchProfile(provider, code));
+    const userId = await linkOrCreate(store, await fetchProfile(provider, code));
     const handoff = newToken();
-    db().prepare("INSERT INTO login_handoffs (code_hash, user_id, expires_at) VALUES (?, ?, ?)")
-      .run(sha256(handoff), userId, new Date(Date.now() + HANDOFF_TTL_MS).toISOString());
+    await store.insert("login_handoffs", { code_hash: sha256(handoff), user_id: userId, expires_at: new Date(Date.now() + HANDOFF_TTL_MS).toISOString() });
     return loginRedirect(`oauth=${handoff}`);
   } catch (err) {
     const reason: OAuthFailure = err instanceof OAuthError ? err.reason : "oauth_failed";
@@ -215,13 +209,14 @@ async function callback(provider: Provider, params: URLSearchParams): Promise<Re
 }
 
 /** Trades the one-time code from the redirect for a session token. Works once and expires in two minutes. */
-function exchange(code: string) {
+async function exchange(code: string) {
+  const { store } = await context();
   const hash = sha256(code);
-  const row = db().prepare("SELECT user_id, expires_at FROM login_handoffs WHERE code_hash = ?").get(hash) as Row | undefined;
-  db().prepare("DELETE FROM login_handoffs WHERE code_hash = ?").run(hash);
+  const row = await store.one("login_handoffs", { code_hash: hash });
+  await store.remove("login_handoffs", { code_hash: hash });
   if (!row || row.expires_at <= nowIso()) throw new HttpError(401, "This sign-in link has expired. Please try again.");
-  const user = db().prepare("SELECT * FROM users WHERE id = ?").get(row.user_id) as Row;
-  return { token: openSession(user.id), user: toUser(user) };
+  const user = (await store.one("users", { id: row.user_id })) as Row;
+  return { token: await openSession(user.id), user: toUser(user) };
 }
 
 export const oauthRoutes: Route[] = [

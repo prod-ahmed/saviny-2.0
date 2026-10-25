@@ -2,12 +2,54 @@ import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { Confirm, EmptyState, Icon, Modal, PageHeader, StateText } from "../components/ui";
 import { TransactionForm } from "../components/forms";
+import { AiPanel } from "../components/AiPanel";
 import { api } from "../lib/api";
 import { formatMoney, longDate, shortDate } from "../lib/format";
 import { useApi, useSession } from "../lib/hooks";
 import type { Account, Category, Dashboard, Transaction } from "../lib/types";
 
 interface TxPage { items: Transaction[]; total: number }
+
+interface Subscription {
+  description: string;
+  amount: number;
+  frequency: "weekly" | "monthly" | "yearly";
+  categoryId: string;
+  accountId: string;
+  nextDate: string;
+}
+
+/** Repeating payments the assistant found. Adding one creates a recurring item the user confirms later; nothing is paid. */
+function Subscriptions({ items, currency }: { items: Subscription[]; currency: string }) {
+  const [added, setAdded] = useState<string[]>([]);
+  const [error, setError] = useState("");
+
+  const add = async (item: Subscription) => {
+    setError("");
+    try {
+      await api("/recurring", {
+        method: "POST",
+        json: { type: "expense", amount: item.amount, description: item.description, accountId: item.accountId, categoryId: item.categoryId, frequency: item.frequency, nextDate: item.nextDate },
+      });
+      setAdded((list) => [...list, item.description]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The recurring item could not be added");
+    }
+  };
+
+  if (items.length === 0) return <p>No repeating payments found in the last year.</p>;
+  return (
+    <div className="ai-subs">
+      {items.map((item) => (
+        <div key={`${item.description}-${item.amount}`}>
+          <span>{item.description} · {formatMoney(item.amount, currency)} · {item.frequency}</span>
+          {added.includes(item.description) ? <em>Added</em> : <button type="button" className="secondary" onClick={() => add(item)}>Add as recurring</button>}
+        </div>
+      ))}
+      {error && <p className="auth-error" role="alert">{error}</p>}
+    </div>
+  );
+}
 
 export default function Transactions() {
   const navigate = useNavigate();
@@ -117,6 +159,15 @@ export default function Transactions() {
             ))}
           </div>
         )}
+      </section>
+
+      <section className="card module-card">
+        <AiPanel<{ subscriptions: Subscription[] }>
+          title="Repeating payments"
+          action="Find subscriptions"
+          run={() => api("/ai/finance/subscriptions")}
+          render={(result) => <Subscriptions items={result.subscriptions} currency={currency} />}
+        />
       </section>
 
       {selected && (

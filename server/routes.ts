@@ -1,3 +1,4 @@
+import { aiRoutes } from "./ai/routes";
 import { authRoutes } from "./modules/auth";
 import { communityRoutes } from "./modules/community";
 import { financeRoutes } from "./modules/finance";
@@ -15,4 +16,5 @@ export const routes: Route[] = [
   ...marketRoutes,
   ...communityRoutes,
   ...messagesRoutes,
+  ...aiRoutes,
 ];

@@ -1,9 +1,10 @@
 import { createServer, type Server } from "node:http";
 import { mkdtempSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { io, type Socket } from "socket.io-client";
-import { resetContext } from "../server/context";
+import { context, resetContext } from "../server/context";
 import { attachSocket } from "../server/messages/socket";
 import { handleApi } from "../server/http/router";
 import { resetRateLimits } from "../server/common/rate-limit";
@@ -14,13 +15,20 @@ export interface ApiResult {
   headers: Headers;
 }
 
-/** Points the app at a fresh database and media folder. Call once per test file, before any request. */
-export function freshDatabase(label: string): void {
+/** Points the app at a fresh MongoDB database and media folder. Call once per test file, before any request. */
+export async function freshDatabase(label: string): Promise<void> {
   const dir = mkdtempSync(join(tmpdir(), `saviny-${label}-`));
-  process.env.DATABASE_FILE = join(dir, "test.db");
+  process.env.MONGODB_DB = `saviny_test_${label}_${randomBytes(4).toString("hex")}`;
   process.env.MEDIA_DIR = join(dir, "media");
-  resetContext();
+  await resetContext();
   resetRateLimits();
+}
+
+/** Drops the test database and closes the connection. Call once per test file, after its tests. */
+export async function dropTestDatabase(): Promise<void> {
+  const { store } = await context();
+  await store.drop();
+  await resetContext();
 }
 
 /** One request through the same dispatcher the Next.js route handler uses. */
