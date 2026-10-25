@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AssistantChat } from "./components/AssistantChat";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import Accounts from "./pages/Accounts";
@@ -16,7 +16,8 @@ import Support from "./pages/Support";
 import Transactions from "./pages/Transactions";
 import { ForgotPassword, Login, Register } from "./pages/AuthPages";
 import { Confirm, Icon, type IconName } from "./components/ui";
-import { api } from "./lib/api";
+import { api, getToken } from "./lib/api";
+import { flushOutbox, OUTBOX_EVENT, pendingCount } from "./lib/offline";
 import { SessionContext, useApi, useOnline, useSessionState } from "./lib/hooks";
 import { useLiveEvent } from "./lib/socket";
 import { playMessageTone, setUnreadTitle, showMessageNotification } from "./lib/notify";
@@ -69,6 +70,26 @@ export default function App() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState(0);
+
+  // Changes made offline wait in the outbox; they are sent in order as soon as the connection returns.
+  const refreshPending = useCallback(() => {
+    void pendingCount().then(setPending);
+  }, []);
+  useEffect(() => {
+    const sync = () => {
+      if (!navigator.onLine) return refreshPending();
+      void flushOutbox(getToken()).then(refreshPending);
+    };
+    sync();
+    refreshPending();
+    window.addEventListener("online", sync);
+    window.addEventListener(OUTBOX_EVENT, refreshPending);
+    return () => {
+      window.removeEventListener("online", sync);
+      window.removeEventListener(OUTBOX_EVENT, refreshPending);
+    };
+  }, [refreshPending]);
 
   const isAuthPage = AUTH_PATHS.includes(location.pathname);
   const notices = useApi<NotificationList>(session.user && !isAuthPage ? "/notifications" : null);
@@ -187,7 +208,8 @@ export default function App() {
         </aside>
 
         <main>
-          {!online && <div className="offline-banner" role="status">You’re offline. You can read saved pages, but changes can’t be saved until you reconnect.</div>}
+          {!online && <div className="offline-banner" role="status">You’re offline. You can read your saved data{pending > 0 ? `, and ${pending} change${pending === 1 ? "" : "s"} will sync when you reconnect` : ""}.</div>}
+          {online && pending > 0 && <div className="offline-banner" role="status">{pending} change{pending === 1 ? "" : "s"} waiting to sync.</div>}
           <header className="topbar">
             <div className="topbar-left">
               <button className="mobile-menu icon-button" onClick={() => setMenuOpen(true)} aria-label="Open navigation"><Icon name="menu" /></button>

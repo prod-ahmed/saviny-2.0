@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { api, getToken, setToken } from "./api";
+import { clearCachedResponses, SYNCED_EVENT } from "./offline";
 import { connectSocket, disconnectSocket } from "./socket";
 import type { User } from "./types";
 
@@ -16,6 +17,13 @@ export function useApi<T>(path: string | null): Loader<T> {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    if (!path) return;
+    const onSynced = () => setVersion((v) => v + 1);
+    window.addEventListener(SYNCED_EVENT, onSynced);
+    return () => window.removeEventListener(SYNCED_EVENT, onSynced);
+  }, [path]);
 
   useEffect(() => {
     if (!path) return;
@@ -98,6 +106,7 @@ export function useSessionState(): Session {
       /* the session may already be gone; clear it locally anyway */
     }
     disconnectSocket();
+    await clearCachedResponses();
     setToken(null);
     window.location.assign("/login");
   }, []);

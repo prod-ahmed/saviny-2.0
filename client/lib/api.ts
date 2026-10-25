@@ -1,3 +1,5 @@
+import { cacheResponse, clearCachedResponses, queueWrite, readCachedResponse } from "./offline";
+
 const TOKEN_KEY = "saviny.token";
 
 /** The session token is the only browser-side value kept; every access is guarded. */
@@ -24,26 +26,45 @@ export class ApiError extends Error {
   }
 }
 
-type Options = Omit<RequestInit, "body"> & { json?: unknown };
+type Options = Omit<RequestInit, "body"> & {
+  json?: unknown;
+  /** Changes that must reach the server at once (password, account deletion) are never queued. */
+  requireOnline?: boolean;
+};
 
-export async function api<T>(path: string, { json, headers, method, ...init }: Options = {}): Promise<T> {
+export async function api<T>(path: string, { json, headers, method, requireOnline, ...init }: Options = {}): Promise<T> {
   const write = (method ?? "GET") !== "GET";
-  if (write && !navigator.onLine) throw new ApiError("Connection required — nothing was saved.", 0);
-
+  // Sign-in and sign-out are never queued: they only make sense with a live session.
+  const queueable = write && !requireOnline && !path.startsWith("/auth/");
   const token = getToken();
-  const res = await fetch(`/api${path}`, {
-    ...init,
-    method,
-    headers: {
-      ...(json !== undefined ? { "content-type": "application/json" } : {}),
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
-      ...(headers as Record<string, string>),
-    },
-    body: json !== undefined ? JSON.stringify(json) : undefined,
-  });
+
+  let res: Response;
+  try {
+    res = await fetch(`/api${path}`, {
+      ...init,
+      method,
+      headers: {
+        ...(json !== undefined ? { "content-type": "application/json" } : {}),
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...(headers as Record<string, string>),
+      },
+      body: json !== undefined ? JSON.stringify(json) : undefined,
+    });
+  } catch {
+    // No connection: save the change for later, or show the last saved answer for a read.
+    if (queueable) {
+      await queueWrite(method ?? "POST", path, json);
+      return undefined as T;
+    }
+    if (write) throw new ApiError("Connection required — nothing was saved.", 0);
+    const saved = await readCachedResponse<T>(path);
+    if (saved !== undefined) return saved;
+    throw new ApiError("You are offline, and this page has not been saved on this device yet.", 0);
+  }
 
   if (res.status === 401 && token && !path.startsWith("/auth/")) {
     setToken(null);
+    void clearCachedResponses();
     window.location.assign("/login");
   }
   if (!res.ok) {
@@ -51,7 +72,10 @@ export async function api<T>(path: string, { json, headers, method, ...init }: O
     const message = Array.isArray(body.message) ? body.message.join(", ") : body.message ?? res.statusText;
     throw new ApiError(message, res.status);
   }
-  return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
+  if (res.status === 204) return undefined as T;
+  const data = (await res.json()) as T;
+  if (!write) void cacheResponse(path, data);
+  return data;
 }
 
 /** Reads a local image as a data URL for listing photos. */

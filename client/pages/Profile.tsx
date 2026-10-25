@@ -161,7 +161,7 @@ export function Settings() {
     setBusy(true);
     setError("");
     try {
-      await api("/users/me/delete-request", { method: "POST", json: { confirmation: "DELETE" } });
+      await api("/users/me/delete-request", { method: "POST", json: { confirmation: "DELETE" }, requireOnline: true });
       setDeleting(false);
       refresh();
       setMessage("Deletion requested. Your account will be reviewed before anything is removed.");

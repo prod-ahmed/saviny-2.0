@@ -408,7 +408,7 @@ export function PostForm({ onSaved, onCancel }: { onSaved: () => void; onCancel:
 
 export function ContactForm({ listing, onSaved, onCancel }: { listing: Listing; onSaved: (conversationId: string) => void; onCancel: () => void }) {
   const { busy, error, submit } = useSubmit(async (form) => {
-    const started = await api<{ conversationId: string }>(`/listings/${listing.id}/messages`, { method: "POST", json: { body: text(form, "body") } });
+    const started = await api<{ conversationId: string }>(`/listings/${listing.id}/messages`, { method: "POST", json: { body: text(form, "body") }, requireOnline: true });
     onSaved(started.conversationId);
   });
   return (
@@ -424,7 +424,7 @@ export function ContactForm({ listing, onSaved, onCancel }: { listing: Listing; 
 export function PasswordForm({ onSaved, onCancel }: { onSaved: () => void; onCancel: () => void }) {
   const { busy, error, submit } = useSubmit(async (form) => {
     if (text(form, "newPassword") !== text(form, "confirmPassword")) throw new Error("The new passwords do not match");
-    await api("/users/me/password", { method: "POST", json: { currentPassword: text(form, "currentPassword"), newPassword: text(form, "newPassword") } });
+    await api("/users/me/password", { method: "POST", json: { currentPassword: text(form, "currentPassword"), newPassword: text(form, "newPassword") }, requireOnline: true });
     onSaved();
   });
   return (
