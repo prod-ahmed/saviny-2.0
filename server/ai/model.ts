@@ -4,7 +4,7 @@ import type { z } from "zod";
 import { HttpError } from "../common/errors";
 
 /** Gemini model used by every AI feature. The key is read from GOOGLE_GENERATIVE_AI_API_KEY. */
-export const AI_MODEL_ID = "gemini-2.5-flash";
+export const AI_MODEL_ID = "gemini-3.5-flash";
 
 /** Shown next to every AI answer: the user must know their data left Saviny (cahier des charges, section 9). */
 export const AI_NOTICE = "Your data was sent to Google Gemini to produce this answer. Saviny does not keep the answer.";
