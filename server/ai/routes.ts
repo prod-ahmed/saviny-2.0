@@ -320,6 +320,20 @@ export const aiRoutes: Route[] = [
 
   // ---- Profile ----------------------------------------------------------------
 
+  /** A review of the user's accounts: how the money is spread across them. */
+  route("GET", "ai/accounts/review", async (ctx) => {
+    const store = await db();
+    const accounts = await store.many("accounts", { user_id: ctx.user.id, archived: false }, { sort: { created_at: 1 } });
+    if (accounts.length === 0) return { headline: "Add an account to get a review.", tips: [] };
+    const { balance } = await dashboardFor(store, ctx.user.id, "this_month");
+    const lines = accounts.map((a) => `${a.name} (${a.type})`).join("\n");
+    return askObject({
+      system: `You review how a person's money is spread across their accounts and suggest sensible next steps. ${UNTRUSTED_RULE}`,
+      prompt: `Currency: ${ctx.user.currency}\nTotal balance across active accounts: ${balance}\n${dataBlock("accounts", lines)}`,
+      schema: z.object({ headline: z.string().max(200), tips: z.array(z.string().max(200)).max(3) }),
+    });
+  }, { limit: AI_LIMIT }),
+
   /** A short money profile for the profile page, from the same figures as the dashboard. */
   route("GET", "ai/profile/summary", async (ctx) => {
     const finances = await financeText(ctx.user.id, ctx.user.currency);

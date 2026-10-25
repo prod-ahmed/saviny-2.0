@@ -92,6 +92,15 @@ describe("AI assistants", () => {
     expect(generateText).not.toHaveBeenCalled();
   });
 
+  it("reviews accounts from their names and types, not from account numbers", async () => {
+    await api("POST", "/api/accounts", { token, body: { name: "Daily Current", type: "checking", initialBalance: 500 } });
+    generateText.mockResolvedValue({ output: { headline: "Most money sits in one account.", tips: ["Keep a small buffer."] } });
+    const res = await api("GET", "/api/ai/accounts/review", { token });
+    expect(res.body).toEqual({ headline: "Most money sits in one account.", tips: ["Keep a small buffer."] });
+    const prompt = generateText.mock.calls[0][0].prompt as string;
+    expect(prompt).toContain("Daily Current (checking)");
+  });
+
   it("answers sign-in questions without a session and without any account data", async () => {
     generateText.mockResolvedValue({ text: "Try resetting your password from the login page." });
     const res = await api("POST", "/api/ai/auth/help", { body: { question: "I forgot my password" } });

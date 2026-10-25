@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { AccountForm } from "../components/forms";
+import { AiPanel } from "../components/AiPanel";
 import { Confirm, EmptyState, Icon, Modal, PageHeader, StateText } from "../components/ui";
 import { api } from "../lib/api";
 import { formatMoney } from "../lib/format";
@@ -43,6 +44,17 @@ export default function Accounts() {
   return (
     <div className="content module-page">
       <PageHeader eyebrow="YOUR MONEY" title="Financial accounts" description="Balances are calculated from your recorded transactions." action="Add account" onAction={() => setAdding(true)} />
+      <AiPanel<{ headline: string; tips: string[] }>
+        title="Account review"
+        action="Review my accounts"
+        run={() => api("/ai/accounts/review")}
+        render={(result) => (
+          <>
+            <p>{result.headline}</p>
+            {result.tips.length > 0 && <ul>{result.tips.map((tip, i) => <li key={i}>{tip}</li>)}</ul>}
+          </>
+        )}
+      />
       <StateText loading={accounts.loading} error={accounts.error} empty={!accounts.data} />
       {accounts.data && active.length === 0 && (
         <EmptyState title="No accounts yet" text="Add a checking, savings, cash or credit account to start recording transactions." action="Add account" onAction={() => setAdding(true)} />
