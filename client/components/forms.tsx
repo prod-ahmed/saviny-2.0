@@ -3,7 +3,7 @@ import { api, apiUpload, readAsDataUrl } from "../lib/api";
 import { todayIso } from "../lib/format";
 import type { Account, Bill, Budget, Category, Goal, Listing, Transaction } from "../lib/types";
 import { AiNotice, useAiCall } from "./AiPanel";
-import { FormError } from "./ui";
+import { FormError, Icon } from "./ui";
 
 /** Runs a submit action, tracks busy state and surfaces the server's message. */
 function useSubmit(action: (form: FormData, el: HTMLFormElement) => Promise<void>) {
@@ -269,10 +269,17 @@ export function ContributionForm({ goalId, onSaved, onCancel }: { goalId: string
 const CONDITIONS = ["New", "Like new", "Good", "Fair"] as const;
 export const LISTING_CATEGORIES = ["Electronics", "Home", "Clothing", "Books", "Sports", "Other"];
 
+const SAMPLE_JEANS_PHOTOS = [
+  { label: "Levi's 501 brut", url: "https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=600&q=80" },
+  { label: "Jeans délavé déchiré", url: "https://images.unsplash.com/photo-1582552938357-32b906df40cb?auto=format&fit=crop&w=600&q=80" },
+  { label: "Jeans slim noir", url: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=600&q=80" },
+  { label: "Jeans coupe droite", url: "https://images.unsplash.com/photo-1576995853123-5a10305d93c0?auto=format&fit=crop&w=600&q=80" },
+];
+
 export function ListingForm({ initial, onSaved, onCancel }: FormProps<Listing>) {
   const [photos, setPhotos] = useState<string[]>(initial?.photos ?? []);
   const [photoError, setPhotoError] = useState("");
-  const [priceNote, setPriceNote] = useState("");
+  const [priceInfo, setPriceInfo] = useState<{ suggestedPrice: number; low: number; high: number; reasoning: string } | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const ai = useAiCall();
   const { busy, error, submit } = useSubmit(async (form) => {
@@ -323,7 +330,7 @@ export function ListingForm({ initial, onSaved, onCancel }: FormProps<Listing>) 
     }));
     if (!answer) return;
     setField(formRef.current, "price", answer.suggestedPrice);
-    setPriceNote(`Suggested ${answer.suggestedPrice} (range ${answer.low} to ${answer.high}). ${answer.reasoning}`);
+    setPriceInfo(answer);
   };
 
   return (
@@ -338,25 +345,112 @@ export function ListingForm({ initial, onSaved, onCancel }: FormProps<Listing>) 
       <label>Condition<select name="condition" defaultValue={initial?.condition ?? "Good"}>
         {CONDITIONS.map((c) => <option key={c}>{c}</option>)}
       </select></label>
-      <div className="ai-inline">
-        <button type="button" className="secondary" onClick={suggestPrice} disabled={ai.busy}>AI: suggest price</button>
-        <button type="button" className="secondary" onClick={writeDescription} disabled={ai.busy}>AI: write description</button>
+
+      {/* ── Assistance Card ── */}
+      <div className="listing-ai-card">
+        <div className="listing-ai-header">
+          <div className="listing-ai-badge">
+            <span className="listing-ai-badge-tag">ASSISTANT IA</span>
+            <strong>L'IA vous aide à publier</strong>
+          </div>
+          <span className="listing-ai-hint">Suggestions automatiques</span>
+        </div>
+
+        <div className="listing-ai-buttons">
+          <button
+            type="button"
+            className={`listing-ai-btn ${ai.busy ? "busy" : ""}`}
+            onClick={suggestPrice}
+            disabled={ai.busy}
+          >
+            <span className="listing-ai-icon"><Icon name="budget" size={16} /></span>
+            <div className="listing-ai-btn-text">
+              <strong>Estimer le prix avec l'IA</strong>
+              <small>Calcule le juste prix selon le marché</small>
+            </div>
+          </button>
+          <button
+            type="button"
+            className={`listing-ai-btn ${ai.busy ? "busy" : ""}`}
+            onClick={writeDescription}
+            disabled={ai.busy}
+          >
+            <span className="listing-ai-icon"><Icon name="edit" size={16} /></span>
+            <div className="listing-ai-btn-text">
+              <strong>Rédiger avec l'IA</strong>
+              <small>Génère un texte clair et vendeur</small>
+            </div>
+          </button>
+        </div>
+
+        {priceInfo && (
+          <div className="listing-ai-price-box">
+            <div className="listing-ai-price-headline">
+              <span className="listing-ai-price-pill">Prix conseillé : {priceInfo.suggestedPrice} €</span>
+              <span className="listing-ai-range">Fourchette : {priceInfo.low} € – {priceInfo.high} €</span>
+            </div>
+            <p className="listing-ai-reasoning">{priceInfo.reasoning}</p>
+          </div>
+        )}
       </div>
-      {priceNote && <p className="muted-small">{priceNote}</p>}
+
       <label>Description<textarea required name="description" maxLength={2000} defaultValue={initial?.description} placeholder="Describe the item honestly" /></label>
       <AiNotice />
+
+      {/* ── Photo Picker with Jeans Presets & clean upload ── */}
       <div className="photo-picker">
-        <span>Photos (up to 5)</span>
+        <div className="photo-picker-top">
+          <span className="photo-picker-title">Photos ({photos.length}/5)</span>
+          <span className="photo-picker-sub">Ajoute jusqu'à 5 photos</span>
+        </div>
+
+        {/* Suggestion rapide de photos de jeans */}
+        <div className="jeans-presets-wrap">
+          <span className="jeans-presets-title">Photos d'exemple disponibles (clic pour sélectionner) :</span>
+          <div className="jeans-presets-chips">
+            {SAMPLE_JEANS_PHOTOS.map((jp, idx) => {
+              const isSelected = photos.includes(jp.url);
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  className={`jeans-preset-chip ${isSelected ? "selected" : ""}`}
+                  disabled={photos.length >= 5 && !isSelected}
+                  onClick={() => {
+                    if (isSelected) {
+                      setPhotos(photos.filter((p) => p !== jp.url));
+                    } else if (photos.length < 5) {
+                      setPhotos([...photos, jp.url]);
+                    }
+                  }}
+                  title={jp.label}
+                >
+                  <img src={jp.url} alt="" className="jeans-preset-thumb" />
+                  <span>{jp.label}</span>
+                  <strong className="jeans-preset-state">{isSelected ? "✓" : "+"}</strong>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="photo-row">
           {photos.map((src, i) => (
             <button type="button" key={i} className="photo-thumb" aria-label="Remove photo" onClick={() => setPhotos(photos.filter((_, j) => j !== i))}>
               <img src={src} alt="" />
             </button>
           ))}
-          {photos.length < 5 && <label className="photo-add"><span aria-hidden="true">+</span> Add<input type="file" accept="image/*" onChange={(e) => addPhoto(e.target.files)} /></label>}
+          {photos.length < 5 && (
+            <label className="photo-add" title="Choisir un fichier">
+              <span aria-hidden="true">+</span>
+              <small>Photo</small>
+              <input type="file" accept="image/*" className="hidden-file-input" onChange={(e) => addPhoto(e.target.files)} />
+            </label>
+          )}
         </div>
         {photoError && <p className="auth-error">{photoError}</p>}
       </div>
+
       <FormError message={error || ai.error} />
       <Actions busy={busy} onCancel={onCancel} label={initial ? "Save listing" : "Publish listing"} />
     </form>
@@ -406,14 +500,14 @@ export function PostForm({ onSaved, onCancel }: { onSaved: () => void; onCancel:
   );
 }
 
-export function ContactForm({ listing, onSaved, onCancel }: { listing: Listing; onSaved: (conversationId: string) => void; onCancel: () => void }) {
+export function ContactForm({ listing, initialMessage = "", onSaved, onCancel }: { listing: Listing; initialMessage?: string; onSaved: (conversationId: string) => void; onCancel: () => void }) {
   const { busy, error, submit } = useSubmit(async (form) => {
     const started = await api<{ conversationId: string }>(`/listings/${listing.id}/messages`, { method: "POST", json: { body: text(form, "body") } });
     onSaved(started.conversationId);
   });
   return (
     <form className="flow-form" onSubmit={submit}>
-      <label>Message to {listing.seller.name}<textarea required name="body" maxLength={1000} placeholder="Is it still available? Can we meet nearby?" /></label>
+      <label>Message to {listing.seller.name}<textarea required name="body" maxLength={1000} defaultValue={initialMessage} placeholder="Is it still available? Can we meet nearby?" /></label>
       <p className="muted-small">Never share bank details. Saviny does not process payments in version 1.</p>
       <FormError message={error} />
       <Actions busy={busy} onCancel={onCancel} label="Send message" />

@@ -4,6 +4,7 @@ data/
 web/dist/
 *.log
 .env*
+!.env.example
 *.tsbuildinfo
 .DS_Store
 

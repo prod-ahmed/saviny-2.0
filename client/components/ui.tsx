@@ -3,7 +3,7 @@ import type React from "react";
 export type IconName =
   | "grid" | "swap" | "budget" | "target" | "store" | "users" | "bell" | "user" | "settings" | "logout" | "search"
   | "calendar" | "wallet" | "income" | "expense" | "saving" | "more" | "chevron" | "arrow" | "plus" | "heart"
-  | "message" | "sparkle" | "close" | "menu" | "edit" | "trash" | "check";
+  | "message" | "sparkle" | "close" | "menu" | "edit" | "trash" | "check" | "camera";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   grid: <><rect x="3" y="3" width="7" height="7" rx="2" /><rect x="14" y="3" width="7" height="7" rx="2" /><rect x="3" y="14" width="7" height="7" rx="2" /><rect x="14" y="14" width="7" height="7" rx="2" /></>,
@@ -34,6 +34,7 @@ const PATHS: Record<IconName, React.ReactNode> = {
   edit: <path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" />,
   trash: <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />,
   check: <path d="m5 12 4 4 10-10" />,
+  camera: <><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></>,
 };
 
 export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
