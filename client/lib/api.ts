@@ -35,7 +35,9 @@ type Options = Omit<RequestInit, "body"> & {
 export async function api<T>(path: string, { json, headers, method, requireOnline, ...init }: Options = {}): Promise<T> {
   const write = (method ?? "GET") !== "GET";
   // Sign-in and sign-out are never queued: they only make sense with a live session.
-  const queueable = write && !requireOnline && !path.startsWith("/auth/");
+  // AI answers need the internet and are never saved on the device.
+  const online = path.startsWith("/auth/") || path.startsWith("/ai/");
+  const queueable = write && !requireOnline && !online;
   const token = getToken();
 
   let res: Response;
@@ -74,7 +76,7 @@ export async function api<T>(path: string, { json, headers, method, requireOnlin
   }
   if (res.status === 204) return undefined as T;
   const data = (await res.json()) as T;
-  if (!write) void cacheResponse(path, data);
+  if (!write && !path.startsWith("/ai/")) void cacheResponse(path, data);
   return data;
 }
 
