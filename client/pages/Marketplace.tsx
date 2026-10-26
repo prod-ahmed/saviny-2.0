@@ -2,6 +2,8 @@ import { useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router";
 import { ContactForm, ListingForm, LISTING_CATEGORIES } from "../components/forms";
 import { Confirm, EmptyState, FormError, Icon, Modal, PageHeader, StateText } from "../components/ui";
+import SmartSearchModal from "../components/SmartSearchModal";
+import ProductAiAnalysisModal from "../components/ProductAiAnalysisModal";
 import { api } from "../lib/api";
 import { formatMoney, timeAgo } from "../lib/format";
 import { useApi, useSession } from "../lib/hooks";
@@ -30,6 +32,7 @@ function ListingGrid({ mode }: { mode: "all" | "favorites" | "mine" }) {
   const [maxPrice, setMaxPrice] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+  const [smartOpen, setSmartOpen] = useState(false);
 
   const params = new URLSearchParams({ pageSize: "48" });
   if (mode === "mine") params.set("mine", "true");
@@ -66,7 +69,11 @@ function ListingGrid({ mode }: { mode: "all" | "favorites" | "mine" }) {
           <select aria-label="Price" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)}>
             <option value="">Any price</option><option value="100">Under {formatMoney(100, currency)}</option><option value="200">Under {formatMoney(200, currency)}</option>
           </select>
-          <button className="secondary" onClick={() => navigate("/marketplace/favorites")}><Icon name="heart" size={16} /> Favorites</button>
+          <button id="smart-search-btn" className="smart-search-trigger" onClick={() => setSmartOpen(true)} title="Recherche intelligente avec l'IA">
+            <span className="smart-trigger-tag">IA</span>
+            <span>Recherche avec l'IA</span>
+          </button>
+        <button className="secondary" onClick={() => navigate("/marketplace/favorites") }><Icon name="heart" size={16} /> Favorites</button>
           <button className="secondary" onClick={() => navigate("/marketplace/my-listings")}>My listings</button>
         </div>
       )}
@@ -98,7 +105,8 @@ function ListingGrid({ mode }: { mode: "all" | "favorites" | "mine" }) {
       {creating && <Modal title="Create listing" onClose={() => setCreating(false)}>
         <ListingForm onSaved={() => { setCreating(false); listings.reload(); }} onCancel={() => setCreating(false)} />
       </Modal>}
-    </div>
+    {smartOpen && <SmartSearchModal onClose={() => setSmartOpen(false)} onNavigate={(id: string) => { setSmartOpen(false); navigate(`/marketplace/${id}`); }} currency={currency} />}
+</div>
   );
 }
 
@@ -112,6 +120,8 @@ function ListingDetail({ id }: { id: string }) {
   const [saleOpen, setSaleOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [aiAnalyzeOpen, setAiAnalyzeOpen] = useState(false);
+  const [contactMsg, setContactMsg] = useState("");
   const [error, setError] = useState("");
   const l = listing.data;
 
@@ -151,6 +161,10 @@ function ListingDetail({ id }: { id: string }) {
               <button className={`outline full-button ${l.favorited ? "liked-text" : ""}`} disabled={busy} onClick={() => run(() => api(`/listings/${l.id}/favorite`, { method: l.favorited ? "DELETE" : "PUT" }))}>
                 <Icon name="heart" size={17} /> {l.favorited ? "Remove from favorites" : "Save to favorites"}
               </button>
+              <button className="pr-detail-trigger full-button" onClick={() => setAiAnalyzeOpen(true)}>
+                <span className="pr-btn-orange-tag">IA</span>
+                <span>Évaluer avec l'IA</span>
+              </button>
             </>}
             {l.isOwner && <div className="owner-actions">
               <button className="secondary" onClick={() => setEditing(true)}><Icon name="edit" size={15} /> Edit</button>
@@ -162,8 +176,13 @@ function ListingDetail({ id }: { id: string }) {
             </div>}
           </section>
         </div>
-        {contacting && <Modal title="Contact seller" onClose={() => setContacting(false)}>
-          <ContactForm listing={l} onSaved={(conversationId) => { setContacting(false); navigate(`/messages/${conversationId}`); }} onCancel={() => setContacting(false)} />
+        {contacting && <Modal title="Contact seller" onClose={() => { setContacting(false); setContactMsg(""); }}>
+          <ContactForm
+            listing={l}
+            initialMessage={contactMsg}
+            onSaved={(conversationId) => { setContacting(false); setContactMsg(""); navigate(`/messages/${conversationId}`); }}
+            onCancel={() => { setContacting(false); setContactMsg(""); }}
+          />
         </Modal>}
         {editing && <Modal title="Edit listing" onClose={() => setEditing(false)}>
           <ListingForm initial={l} onSaved={() => { setEditing(false); listing.reload(); }} onCancel={() => setEditing(false)} />
@@ -172,6 +191,18 @@ function ListingDetail({ id }: { id: string }) {
         {confirmDelete && <Confirm title="Delete this listing?" text="The listing and its photos are removed from the marketplace." confirmLabel="Delete" busy={busy}
           onCancel={() => setConfirmDelete(false)}
           onConfirm={() => run(() => api(`/listings/${l.id}`, { method: "DELETE" }), () => navigate("/marketplace/my-listings"))} />}
+        {aiAnalyzeOpen && (
+          <ProductAiAnalysisModal
+            listing={l}
+            currency={currency}
+            onClose={() => setAiAnalyzeOpen(false)}
+            onAskSeller={(question: string) => {
+              setAiAnalyzeOpen(false);
+              setContactMsg(question);
+              setContacting(true);
+            }}
+          />
+        )}
       </>}
     </div>
   );
