@@ -1,4 +1,4 @@
-// Saviny service worker: caches the app shell and anonymous community reads only.
+// Brixy service worker: caches the app shell and anonymous community reads only.
 // Personal data (/api/accounts, transactions, budgets, goals, messages, notifications, profile) is never stored.
 const SHELL = "saviny-shell-v2";
 const PUBLIC = "saviny-public-v1";

@@ -181,8 +181,8 @@ export default function App() {
         <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
           <div className="brand">
             <button className="brand-home" aria-label="Go to dashboard" onClick={() => navigate("/dashboard")} />
-            <img src="/assets/saviny-logo.png" alt="Saviny" />
-            <div><strong>Saviny</strong><span>Financial companion</span></div>
+            <img src="/assets/saviny-logo.png" alt="Brixy" />
+            <div><strong>Brixy</strong><span>Financial companion</span></div>
             <button className="sidebar-close" aria-label="Close menu" onClick={() => setMenuOpen(false)}><Icon name="close" /></button>
           </div>
           <nav aria-label="Primary navigation">
@@ -203,7 +203,7 @@ export default function App() {
               <button onClick={() => navigate("/support")}>Get support <Icon name="arrow" size={15} /></button>
             </div>
             <button className="logout" onClick={() => setLogoutOpen(true)}><Icon name="logout" /> Log out</button>
-            <p>© 2025 Saviny · v1.0</p>
+            <p>© 2025 Brixy · v1.0</p>
           </div>
         </aside>
 
@@ -304,7 +304,7 @@ export default function App() {
 
         {logoutOpen && (
           <Confirm
-            title="Leave your Saviny session?"
+            title="Leave your Brixy session?"
             text="You’ll need to log in again to access your private financial dashboard."
             confirmLabel="Log out"
             busy={busy}

@@ -1,6 +1,6 @@
 import { createBrowserRouter } from "react-router";
-import SavinyApp from "../App";
+import BrixyApp from "../App";
 
 export const router = createBrowserRouter([
-  { path: "*", Component: SavinyApp },
+  { path: "*", Component: BrixyApp },
 ]);

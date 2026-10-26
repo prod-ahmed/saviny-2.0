@@ -104,7 +104,7 @@ function Inbox() {
       {!live && <p className="offline-banner" role="status">Live messages are paused. Reconnect to send and receive.</p>}
       {permission === "default" && (
         <div className="notify-banner">
-          <span>Get a notification when a message arrives while Saviny is in the background.</span>
+          <span>Get a notification when a message arrives while Brixy is in the background.</span>
           <button className="secondary" onClick={turnOn}>Turn on notifications</button>
         </div>
       )}

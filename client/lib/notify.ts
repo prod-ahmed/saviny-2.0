@@ -10,7 +10,7 @@ export async function enableNotifications(): Promise<NotificationPermission | "u
   return Notification.requestPermission();
 }
 
-/** Shows a system notification; clicking it focuses Saviny and opens the conversation. */
+/** Shows a system notification; clicking it focuses Brixy and opens the conversation. */
 export function showMessageNotification(title: string, body: string, tag: string, onClick: () => void): void {
   if (!notificationsSupported() || Notification.permission !== "granted") return;
   const note = new Notification(title, { body, tag, icon: "/icons/icon-192.png" });
@@ -22,7 +22,7 @@ export function showMessageNotification(title: string, body: string, tag: string
 }
 
 export function setUnreadTitle(count: number): void {
-  document.title = count > 0 ? `(${count}) Saviny` : "Saviny";
+  document.title = count > 0 ? `(${count}) Brixy` : "Brixy";
 }
 
 /** A short two-note tone. Browsers may refuse audio before the first interaction, so failures are ignored. */

@@ -508,7 +508,7 @@ export function ContactForm({ listing, initialMessage = "", onSaved, onCancel }:
   return (
     <form className="flow-form" onSubmit={submit}>
       <label>Message to {listing.seller.name}<textarea required name="body" maxLength={1000} defaultValue={initialMessage} placeholder="Is it still available? Can we meet nearby?" /></label>
-      <p className="muted-small">Never share bank details. Saviny does not process payments in version 1.</p>
+      <p className="muted-small">Never share bank details. Brixy does not process payments in version 1.</p>
       <FormError message={error} />
       <Actions busy={busy} onCancel={onCancel} label="Send message" />
     </form>

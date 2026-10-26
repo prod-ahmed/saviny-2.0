@@ -357,7 +357,7 @@ export const aiRoutes: Route[] = [
       })).min(1).max(20),
     }).strict());
     const finances = await financeText(ctx.user.id, ctx.user.currency);
-    const system = `You are Saviny's financial assistant. Answer in the language of the user's last message. Use only the figures below, suggest ways to save, and say when you are estimating. You cannot move money or change data. ${UNTRUSTED_RULE}\n${finances}`;
+    const system = `You are Brixy's financial assistant. Answer in the language of the user's last message. Use only the figures below, suggest ways to save, and say when you are estimating. You cannot move money or change data. ${UNTRUSTED_RULE}\n${finances}`;
     return streamChat(system, dto.messages);
   }, { limit: AI_LIMIT }),
 
@@ -367,7 +367,7 @@ export const aiRoutes: Route[] = [
   route("POST", "ai/auth/help", async (ctx) => {
     const dto = await ctx.body(z.object({ question: text(500) }).strict());
     const answer = await askText({
-      system: "You help people who use the Saviny personal finance app with signing in and creating an account. Never ask for a password or a code. Keep answers short and answer in the language of the question.",
+      system: "You help people who use the Brixy personal finance app with signing in and creating an account. Never ask for a password or a code. Keep answers short and answer in the language of the question.",
       prompt: dataBlock("question", dto.question),
     });
     return { answer, notice: AI_NOTICE };

@@ -50,7 +50,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
     <div className="modal-layer" role="presentation" onMouseDown={onClose}>
       <section className="modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <div><span className="eyebrow">SAVINY</span><h2>{title}</h2></div>
+          <div><span className="eyebrow">BRIXY</span><h2>{title}</h2></div>
           <button className="icon-button" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
         </div>
         {children}

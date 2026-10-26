@@ -9,7 +9,7 @@ async function category(token: string, name: string) {
   return res.body.find((c: { name: string }) => c.name === name);
 }
 
-describe("Saviny API", () => {
+describe("Brixy API", () => {
   beforeAll(() => freshDatabase("api"));
   afterAll(() => dropTestDatabase());
 

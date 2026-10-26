@@ -2,7 +2,7 @@
   "name": "saviny",
   "version": "1.0.0",
   "private": true,
-  "description": "Saviny - application PWA (Next.js : API route handlers, WebSocket messages, SPA shell)",
+  "description": "Brixy - application PWA (Next.js : API route handlers, WebSocket messages, SPA shell)",
   "type": "module",
   "engines": {
     "node": ">=22"

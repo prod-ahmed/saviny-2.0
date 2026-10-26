@@ -81,7 +81,7 @@ function ListingGrid({ mode }: { mode: "all" | "favorites" | "mine" }) {
       {error && <p className="auth-error" role="alert">{error}</p>}
       {items && items.length === 0 && (
         <EmptyState
-          title={mode === "favorites" ? "Your favorites live here" : mode === "mine" ? "Start selling with Saviny" : "No listings match"}
+          title={mode === "favorites" ? "Your favorites live here" : mode === "mine" ? "Start selling with Brixy" : "No listings match"}
           text={mode === "favorites" ? "Tap the heart on any listing to save it for later." : mode === "mine" ? "Create your first listing and manage its availability from this page." : "Try another search, or be the first to list something in this category."}
           action={mode === "favorites" ? "Explore marketplace" : "Create listing"}
           onAction={() => (mode === "favorites" ? navigate("/marketplace") : setCreating(true))}
@@ -154,7 +154,7 @@ function ListingDetail({ id }: { id: string }) {
             <strong>{formatMoney(l.price, currency)}</strong>
             <span className={`status ${l.status === "available" ? "success" : "danger"}`}>{l.status}</span>
             <p>{l.description}</p>
-            <div className="seller"><span className="avatar peach">{l.seller.initials}</span><div><strong>{l.seller.name}</strong><small>Saviny member</small></div></div>
+            <div className="seller"><span className="avatar peach">{l.seller.initials}</span><div><strong>{l.seller.name}</strong><small>Brixy member</small></div></div>
             {error && <p className="auth-error" role="alert">{error}</p>}
             {!l.isOwner && l.status === "available" && <>
               <button className="primary full-button" onClick={() => setContacting(true)}><Icon name="message" size={17} /> Contact seller</button>

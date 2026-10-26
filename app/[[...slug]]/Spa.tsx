@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { StrictMode, useEffect } from "react";
 
 /** The screens run in the browser only: they need the session, the socket and the router. */
-const SavinyApp = dynamic(() => import("../../client/app/App"), { ssr: false });
+const BrixyApp = dynamic(() => import("../../client/app/App"), { ssr: false });
 
 export default function Spa() {
   useEffect(() => {
@@ -20,7 +20,7 @@ export default function Spa() {
 
   return (
     <StrictMode>
-      <SavinyApp />
+      <BrixyApp />
     </StrictMode>
   );
 }

@@ -48,7 +48,7 @@ export function Profile() {
 
   return (
     <div className="content module-page">
-      <PageHeader eyebrow="YOUR ACCOUNT" title="My profile" description="Manage the information connected to your personal Saviny account." />
+      <PageHeader eyebrow="YOUR ACCOUNT" title="My profile" description="Manage the information connected to your personal Brixy account." />
       <section className="card">
         <AiPanel<{ profile: string; strengths: string[]; nextSteps: string[] }>
           title="My money profile"
@@ -174,7 +174,7 @@ export function Settings() {
 
   return (
     <div className="content module-page">
-      <PageHeader eyebrow="MAKE SAVINY YOURS" title="Settings" description="Control notifications, display, privacy, and account security." />
+      <PageHeader eyebrow="MAKE BRIXY YOURS" title="Settings" description="Control notifications, display, privacy, and account security." />
       <div className="settings-layout">
         <nav className="card settings-nav">
           {TABS.map((t) => <button key={t} className={tab === t ? "active" : ""} onClick={() => { setTab(t); setMessage(""); setError(""); }}>{t}</button>)}
@@ -206,7 +206,7 @@ export function Settings() {
               ))}
             </div>
             <h3>Display &amp; currency</h3>
-            <p>Amounts across Saviny are shown in this currency.</p>
+            <p>Amounts across Brixy are shown in this currency.</p>
             <label>Currency</label>
             <CurrencySelect value={currency} onChange={setCurrency} />
             <div className="form-actions"><button className="primary" disabled={busy} onClick={saveCurrency}>Save currency</button></div>
@@ -222,7 +222,7 @@ export function Settings() {
 
           {tab === "Data & account" && <>
             <h3>Data &amp; account</h3>
-            <p>Your records stay in your Saviny account until you ask for them to be deleted.</p>
+            <p>Your records stay in your Brixy account until you ask for them to be deleted.</p>
             <div className="danger-zone">
               <h3>Delete account</h3>
               <p>Request permanent deletion of your profile and associated data.</p>

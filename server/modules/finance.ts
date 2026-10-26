@@ -500,7 +500,7 @@ export const financeRoutes: Route[] = [
     }));
     return billView(await owned(store, "bills", ctx.params.id, ctx.user.id));
   }),
-  /** Only records the status: Saviny never initiates a payment. */
+  /** Only records the status: Brixy never initiates a payment. */
   route("POST", "bills/:id/mark-paid", async (ctx) => {
     const store = await db();
     await owned(store, "bills", ctx.params.id, ctx.user.id);

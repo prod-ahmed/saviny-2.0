@@ -20,5 +20,5 @@ const server = createServer((req, res) => {
 attachSocket(server);
 
 server.listen(port, () => {
-  console.log(`Saviny listening on http://${hostname}:${port} (${dev ? "development" : "production"}, API: /api)`);
+  console.log(`Brixy listening on http://${hostname}:${port} (${dev ? "development" : "production"}, API: /api)`);
 });

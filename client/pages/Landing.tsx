@@ -2,9 +2,9 @@ import { Link } from "react-router";
 
 const FEATURES = [
   { title: "Accounts and transactions", text: "Track checking, savings, cash and credit in one place. Every income and expense is recorded against the account it belongs to." },
-  { title: "Budgets that warn you early", text: "Set a monthly, weekly or custom limit per category. Saviny flags a budget at 80% and again when it's exceeded." },
+  { title: "Budgets that warn you early", text: "Set a monthly, weekly or custom limit per category. Brixy flags a budget at 80% and again when it's exceeded." },
   { title: "Savings goals with a real estimate", text: "Add contributions to a goal and see progress, what remains, and when you'd finish at your current pace." },
-  { title: "Bills and scheduled payments", text: "See what's due in the next seven days. Marking a bill paid only updates your record: Saviny never moves money." },
+  { title: "Bills and scheduled payments", text: "See what's due in the next seven days. Marking a bill paid only updates your record: Brixy never moves money." },
   { title: "A marketplace with private messages", text: "Buy and sell secondhand items. Talk with the other person in a chat with photos, voice notes and reactions." },
   { title: "A community that moderates itself", text: "Share saving tips and budgeting ideas. Reports reach moderators, and hidden posts stay hidden from everyone else." },
 ];
@@ -19,9 +19,9 @@ export default function Landing() {
   return (
     <div className="landing">
       <header className="landing-nav">
-        <Link to="/" className="landing-brand" aria-label="Saviny home">
+        <Link to="/" className="landing-brand" aria-label="Brixy home">
           <img src="/assets/saviny-logo.png" alt="" width="40" height="40" />
-          <strong>Saviny</strong>
+          <strong>Brixy</strong>
         </Link>
         <nav aria-label="Account">
           <Link to="/login" className="landing-link">Log in</Link>
@@ -35,7 +35,7 @@ export default function Landing() {
             <span className="eyebrow">YOUR FINANCIAL LIFE COMPANION</span>
             <h1>Feel calm and confident about your money.</h1>
             <p>
-              Saviny brings your accounts, budgets, savings goals and bills into one private dashboard. It also has a
+              Brixy brings your accounts, budgets, savings goals and bills into one private dashboard. It also has a
               marketplace and a community, so you can buy, sell and learn from people nearby.
             </p>
             <div className="landing-actions">
@@ -106,7 +106,7 @@ export default function Landing() {
       </main>
 
       <footer className="landing-footer">
-        <span>© {new Date().getFullYear()} Saviny</span>
+        <span>© {new Date().getFullYear()} Brixy</span>
         <nav aria-label="Footer">
           <Link to="/login">Log in</Link>
           <Link to="/register">Sign up</Link>

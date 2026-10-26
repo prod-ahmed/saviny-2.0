@@ -205,7 +205,7 @@ export default function Dashboard() {
         </section>
 
         <section className="card marketplace-card">
-          <SectionTitle title="Marketplace" subtitle="Great finds from the Saviny community" action="Explore marketplace" onAction={() => navigate("/marketplace")} />
+          <SectionTitle title="Marketplace" subtitle="Great finds from the Brixy community" action="Explore marketplace" onAction={() => navigate("/marketplace")} />
           <div className="market-grid">
             {(listings.data?.items ?? []).map((item) => (
               <article className="listing" key={item.id}>
@@ -222,7 +222,7 @@ export default function Dashboard() {
             ))}
             <div className="sell-card">
               <span><Icon name="store" /></span>
-              <div><h3>Give unused items a new home</h3><p>List safely in your local Saviny community.</p><button onClick={() => navigate("/marketplace/my-listings")}>Sell an item</button></div>
+              <div><h3>Give unused items a new home</h3><p>List safely in your local Brixy community.</p><button onClick={() => navigate("/marketplace/my-listings")}>Sell an item</button></div>
             </div>
           </div>
         </section>

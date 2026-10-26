@@ -49,7 +49,7 @@ export default function Bills() {
 
   return (
     <div className="content module-page">
-      <PageHeader eyebrow="UPCOMING COMMITMENTS" title="Bills & scheduled payments" description="Saviny tracks status only and never initiates a bank transfer." action="Add bill" onAction={() => setAdding(true)} />
+      <PageHeader eyebrow="UPCOMING COMMITMENTS" title="Bills & scheduled payments" description="Brixy tracks status only and never initiates a bank transfer." action="Add bill" onAction={() => setAdding(true)} />
       <div className="module-tabs">
         <button onClick={() => navigate("/budgets")}>Budgets</button>
         <button className={tab === "upcoming" ? "active" : ""} onClick={() => setTab("upcoming")}>Upcoming</button>

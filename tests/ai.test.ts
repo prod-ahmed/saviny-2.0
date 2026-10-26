@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, dropTestDatabase, freshDatabase, register } from "./helpers";
 
-// The model is replaced with a stub: the tests check how Saviny reads and checks the answers, not the answers themselves.
+// The model is replaced with a stub: the tests check how Brixy reads and checks the answers, not the answers themselves.
 const { generateText } = vi.hoisted(() => ({ generateText: vi.fn() }));
 vi.mock("ai", async (importOriginal) => ({ ...(await importOriginal<typeof import("ai")>()), generateText }));
 vi.mock("@ai-sdk/google", () => ({ google: () => ({ modelId: "stub" }) }));
