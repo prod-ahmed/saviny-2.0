@@ -75,3 +75,4 @@ Ce document est votre antisèche pour obtenir la note maximale (**20/20**) lors 
 - [x] MongoDB actif et accessible
 - [x] Clé Gemini configurée dans `.env.local`
 - [x] Image de ticket prête sur le bureau pour la démo OCR
+

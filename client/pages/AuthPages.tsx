@@ -14,10 +14,12 @@ function AuthLayout({ eyebrow, title, description, children }: { eyebrow: string
   return (
     <div className="auth-page">
       <section className="auth-brand">
-        <img src="/assets/saviny-logo.png" alt="Saviny" />
-        <span className="eyebrow">YOUR FINANCIAL LIFE COMPANION</span>
-        <h1>Feel calm and confident about your money.</h1>
-        <p>Plan today, build tomorrow, and stay connected to what matters.</p>
+        <div className="mb-6 p-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 inline-block shadow-2xl">
+          <img src="/assets/pennywise-logo.png" alt="Pennywise" className="w-24 h-24 rounded-full bg-white object-cover shadow-lg border-2 border-emerald-400" />
+        </div>
+        <span className="eyebrow">PENNYWISE · SMART FINANCIAL COMPANION</span>
+        <h1>Prenez le contrôle intelligent de votre argent.</h1>
+        <p>Budget, épargne, scanner de reçus et coach financier propulsé par l'IA Google Gemini.</p>
       </section>
       <section className="auth-card">
         <div>
@@ -160,7 +162,7 @@ export function Login() {
       <p className="auth-foot">
         <Link to="/forgot-password">Forgot password?</Link>
       </p>
-      <p className="auth-foot">New to Saviny? <Link to="/register">Create your account</Link></p>
+      <p className="auth-foot">New to Pennywise? <Link to="/register">Create your account</Link></p>
     </AuthLayout>
   );
 }
@@ -187,7 +189,7 @@ export function Register() {
   };
 
   return (
-    <AuthLayout eyebrow="CREATE ACCOUNT" title="Start with Saviny" description="Your records are private and stored for your account only.">
+    <AuthLayout eyebrow="CREATE ACCOUNT" title="Start with Pennywise" description="Your records are private and stored securely for your account only.">
       <form className="flow-form" onSubmit={submit}>
         <div className="form-row">
           <label>First name<input required value={form.firstName} onChange={set("firstName")} /></label>
@@ -208,7 +210,7 @@ export function Register() {
 export function ForgotPassword() {
   return (
     <AuthLayout eyebrow="PASSWORD" title="Forgot password" description="Password reset by email is not available in this version.">
-      <p className="muted-small">If you have lost access, contact the person who manages this Saviny instance. You can also create a new account with another email address.</p>
+      <p className="muted-small">If you have lost access, contact the person who manages this Pennywise instance. You can also create a new account with another email address.</p>
       <p className="auth-foot"><Link to="/login">Back to login</Link></p>
     </AuthLayout>
   );

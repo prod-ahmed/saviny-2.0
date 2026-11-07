@@ -58,7 +58,7 @@ export function WhatIf({ currency }: { currency: string }) {
           <div>
             <div className="flex items-center gap-2">
               <h3 className="font-bold text-sm sm:text-base text-gray-900">
-                Saviny AI – Smart Savings Coach : Simulateur
+                Pennywise AI – Smart Savings Coach : Simulateur
               </h3>
               <span className="text-[10px] font-extrabold uppercase bg-emerald-600/15 text-emerald-800 border border-emerald-600/20 px-2 py-0.5 rounded-full">
                 ✨ Scénario IA

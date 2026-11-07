@@ -6,12 +6,19 @@ export default function OfflinePage() {
   return (
     <main className="min-h-screen flex items-center justify-center bg-[#f6f8f7] text-[#102a29] p-6">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center border border-gray-100">
-        <div className="w-16 h-16 mx-auto mb-4 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center text-3xl font-bold">
-          📶
+        <div className="flex items-center justify-center gap-3 mb-4">
+          <img
+            src="/assets/pennywise-logo.png"
+            alt="Pennywise"
+            className="w-14 h-14 rounded-full border-2 border-emerald-400 bg-white shadow-md object-cover"
+          />
+          <div className="w-12 h-12 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center text-2xl font-bold">
+            📶
+          </div>
         </div>
         <h1 className="text-2xl font-bold mb-2">You are currently offline</h1>
         <p className="text-gray-600 mb-6 text-sm">
-          Saviny is a Progressive Web App (PWA). You can continue viewing previously cached pages. Any changes made offline are safely held in your local outbox and will synchronize once your internet connection is restored.
+          Pennywise is a Progressive Web App (PWA). You can continue viewing previously cached pages. Any changes made offline are safely held in your local outbox and will synchronize once your internet connection is restored.
         </p>
         <div className="flex flex-col gap-3">
           <button

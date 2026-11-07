@@ -1,7 +1,7 @@
 {
-  "name": "Saviny",
-  "short_name": "Saviny",
-  "description": "Your financial companion",
+  "name": "Pennywise",
+  "short_name": "Pennywise",
+  "description": "Pennywise — Smart Financial Companion & AI Savings Coach",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -9,6 +9,8 @@
   "theme_color": "#102a29",
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
+

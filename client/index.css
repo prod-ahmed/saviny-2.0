@@ -101,7 +101,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .brand { align-items: center; display: flex; gap: 11px; margin: 0 6px 27px; position: relative; }
 .brand-home { background: transparent; border: 0; inset: 0; position: absolute; width: 100%; z-index: 1; }
 .brand > img, .brand > div, .brand > .sidebar-close { pointer-events: none; position: relative; z-index: 2; }
-.brand img { background: var(--blue-soft); border-radius: 13px; height: 44px; object-fit: cover; object-position: 50% 45%; width: 44px; }
+.brand img { background: white; border-radius: 9999px; height: 46px; object-fit: cover; width: 46px; box-shadow: 0 4px 14px rgba(0,0,0,0.25); border: 2px solid rgba(52, 211, 153, 0.7); }
 .brand strong { display: block; font: 800 20px/1 "Manrope", sans-serif; letter-spacing: -.4px; }
 .brand span { color: #9bb2af; font-size: 10px; }
 .sidebar-close { display: none; }
@@ -637,5 +637,21 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   box-shadow: 0 0 12px #10b981, 0 0 25px #34d399;
   animation: laserSweep 1.8s ease-in-out infinite;
   z-index: 20;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.25s ease-out forwards;
+}
+
+@keyframes scaleUp {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-scaleUp {
+  animation: scaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 

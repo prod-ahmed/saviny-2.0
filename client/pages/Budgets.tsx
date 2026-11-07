@@ -26,14 +26,27 @@ function BudgetList() {
       <PageHeader eyebrow="PLAN WITH CONFIDENCE" title="Budget management" description="Set thoughtful limits and stay ahead of upcoming commitments." action="Create budget" onAction={() => setCreating(true)} />
       <div className="module-tabs"><button className="active">Active budgets</button><button onClick={() => navigate("/bills")}>Bills &amp; scheduled payments</button></div>
       <AiPanel<{ headline: string; tips: string[] }>
-        title="Budget insights"
-        action="Review my budgets"
+        title="Optimiseur & Analyse de Budgets par IA"
+        action="Analyser mes budgets"
+        description="L'IA Pennywise compare vos plafonds fixés à votre rythme réel de dépenses pour vous recommander des ajustements concrets et éviter les dépassements de fin de mois."
         run={() => api("/ai/budgets/insights")}
         render={(result) => (
-          <>
-            <p>{result.headline}</p>
-            {result.tips.length > 0 && <ul>{result.tips.map((tip, i) => <li key={i}>{tip}</li>)}</ul>}
-          </>
+          <div className="space-y-3">
+            <p className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <span>🎯</span>
+              <span>{result.headline}</span>
+            </p>
+            {result.tips.length > 0 && (
+              <ul className="space-y-1.5 list-none pl-0">
+                {result.tips.map((tip, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs sm:text-sm text-gray-700 dark:text-gray-300">
+                    <span className="text-emerald-500 font-bold">✓</span>
+                    <span>{tip}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       />
       <StateText loading={budgets.loading} error={budgets.error} empty={!budgets.data} />

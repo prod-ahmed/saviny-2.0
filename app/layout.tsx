@@ -3,12 +3,12 @@ import "../client/index.css";
 import { THEME_INIT_SCRIPT } from "../client/lib/theme";
 
 export const metadata: Metadata = {
-  title: "Saviny",
-  description: "Saviny — your financial companion: accounts, budgets, savings goals, marketplace and community.",
+  title: "Pennywise — Smart Financial Companion",
+  description: "Pennywise — your smart financial companion: accounts, budgets, savings goals, AI Coach and receipt scanner.",
   manifest: "/manifest.json",
-  appleWebApp: { capable: true, title: "Saviny" },
+  appleWebApp: { capable: true, title: "Pennywise" },
   icons: {
-    icon: "/favicon.svg",
+    icon: "/assets/pennywise-logo.png",
     apple: "/icons/icon-192.png",
   },
 };

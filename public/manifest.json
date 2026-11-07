@@ -1,7 +1,7 @@
 {
-  "name": "Saviny",
-  "short_name": "Saviny",
-  "description": "Your financial companion: accounts, budgets, savings goals, marketplace and community.",
+  "name": "Pennywise",
+  "short_name": "Pennywise",
+  "description": "Pennywise — Smart Financial Companion & AI Savings Coach",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

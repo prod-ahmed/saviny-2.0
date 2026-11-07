@@ -49,11 +49,48 @@ export default function Bills() {
 
   return (
     <div className="content module-page">
-      <PageHeader eyebrow="UPCOMING COMMITMENTS" title="Bills & scheduled payments" description="Saviny tracks status only and never initiates a bank transfer." action="Add bill" onAction={() => setAdding(true)} />
+      <PageHeader eyebrow="UPCOMING COMMITMENTS" title="Bills & scheduled payments" description="Pennywise tracks status only and never initiates a bank transfer." action="Add bill" onAction={() => setAdding(true)} />
       <div className="module-tabs">
         <button onClick={() => navigate("/budgets")}>Budgets</button>
         <button className={tab === "upcoming" ? "active" : ""} onClick={() => setTab("upcoming")}>Upcoming</button>
         <button className={tab === "paid" ? "active" : ""} onClick={() => setTab("paid")}>Paid</button>
+      </div>
+
+      {/* What-If Simulation Callout for Bills */}
+      <div className="my-3 p-4 rounded-3xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-teal-500/10 border border-amber-300/60 dark:border-amber-700/40 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-[#102a29] dark:text-emerald-50">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center text-lg shadow-sm shrink-0">
+            🔮
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider bg-amber-500 text-white px-2 py-0.5 rounded-full">
+                ✨ SIMULATEUR WHAT-IF
+              </span>
+              <span className="text-xs font-bold text-amber-800 dark:text-amber-300">Anticipez vos charges</span>
+            </div>
+            <p className="text-xs text-gray-700 dark:text-gray-300 mt-0.5">
+              Une augmentation de loyer ou une nouvelle facture ? Testez son impact sur vos objectifs d'épargne.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            const coachBtn = document.querySelector('button[aria-label="Ouvrir Pennywise AI - Smart Savings Coach"], button[aria-label="Ouvrir Saviny AI - Smart Savings Coach"]') as HTMLButtonElement;
+            if (coachBtn) {
+              coachBtn.click();
+              setTimeout(() => {
+                const whatIfTab = document.querySelectorAll('button[role="tab"]')[1] as HTMLButtonElement;
+                if (whatIfTab) whatIfTab.click();
+              }, 200);
+            }
+          }}
+          className="shrink-0 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow transition flex items-center gap-1.5 cursor-pointer"
+        >
+          <span>Simuler l'impact</span>
+          <span>→</span>
+        </button>
       </div>
       <StateText loading={bills.loading} error={bills.error} empty={!bills.data} />
       {error && <p className="auth-error" role="alert">{error}</p>}

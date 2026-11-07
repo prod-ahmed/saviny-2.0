@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { SmartCoach } from "./components/SmartCoach";
+import { OnboardingDemo } from "./components/OnboardingDemo";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import Accounts from "./pages/Accounts";
 import Landing from "./pages/Landing";
@@ -69,8 +70,16 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
+  const [showTour, setShowTour] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState(0);
+
+  useEffect(() => {
+    if (session.user && !localStorage.getItem("pennywise_tour_seen")) {
+      const timer = setTimeout(() => setShowTour(true), 700);
+      return () => clearTimeout(timer);
+    }
+  }, [session.user]);
 
   // Changes made offline wait in the outbox; they are sent in order as soon as the connection returns.
   const refreshPending = useCallback(() => {
@@ -181,8 +190,8 @@ export default function App() {
         <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
           <div className="brand">
             <button className="brand-home" aria-label="Go to dashboard" onClick={() => navigate("/dashboard")} />
-            <img src="/assets/saviny-logo.png" alt="Saviny" />
-            <div><strong>Saviny</strong><span>Financial companion</span></div>
+            <img src="/assets/pennywise-logo.png" alt="Pennywise" className="rounded-full shadow-md border-2 border-emerald-400 bg-white object-cover" />
+            <div><strong>Pennywise</strong><span>Smart Financial Companion</span></div>
             <button className="sidebar-close" aria-label="Close menu" onClick={() => setMenuOpen(false)}><Icon name="close" /></button>
           </div>
           <nav aria-label="Primary navigation">
@@ -196,14 +205,14 @@ export default function App() {
             ))}
           </nav>
           <div className="sidebar-footer">
-            <div className="help-card">
+            <div className="help-card bg-gradient-to-br from-emerald-950/40 to-teal-900/30 border border-emerald-500/20 p-3.5 rounded-2xl">
               <span><Icon name="sparkle" size={18} /></span>
-              <strong>Need a hand?</strong>
-              <p>Visit our help center for financial guidance.</p>
-              <button onClick={() => navigate("/support")}>Get support <Icon name="arrow" size={15} /></button>
+              <strong>Découvrir Pennywise</strong>
+              <p>Explorez les outils IA et le Coach d'épargne.</p>
+              <button onClick={() => setShowTour(true)}>Voir la démo <Icon name="arrow" size={15} /></button>
             </div>
             <button className="logout" onClick={() => setLogoutOpen(true)}><Icon name="logout" /> Log out</button>
-            <p>© 2025 Saviny · v1.0</p>
+            <p>© 2025 Pennywise · v2.0 AI</p>
           </div>
         </aside>
 
@@ -216,6 +225,15 @@ export default function App() {
               <div><h1>{active}</h1><p>Your financial life, beautifully organized.</p></div>
             </div>
             <div className="topbar-actions">
+              <button
+                type="button"
+                onClick={() => setShowTour(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-500/15 to-teal-500/15 hover:from-emerald-500/25 hover:to-teal-500/25 text-emerald-800 dark:text-emerald-200 border border-emerald-500/30 transition shadow-sm cursor-pointer"
+                title="Ouvrir le guide et la démo Pennywise"
+              >
+                <span className="text-sm">✨</span>
+                <span className="hidden sm:inline">Guide & Démo</span>
+              </button>
               <span className="online"><i /> {online ? "Online" : "Offline"}</span>
               <span className="date"><Icon name="calendar" size={17} />{currentDate}</span>
               <div className="global-search">
@@ -302,10 +320,19 @@ export default function App() {
 
         <SmartCoach currency={session.user?.currency ?? "USD"} />
 
+        <OnboardingDemo
+          isOpen={showTour}
+          onClose={() => setShowTour(false)}
+          onNavigate={(path) => {
+            setShowTour(false);
+            navigate(path);
+          }}
+        />
+
         {logoutOpen && (
           <Confirm
-            title="Leave your Saviny session?"
-            text="You’ll need to log in again to access your private financial dashboard."
+            title="Quitter Pennywise ?"
+            text="Vous devrez vous reconnecter pour accéder à vos finances et à votre Coach IA."
             confirmLabel="Log out"
             busy={busy}
             onCancel={() => setLogoutOpen(false)}

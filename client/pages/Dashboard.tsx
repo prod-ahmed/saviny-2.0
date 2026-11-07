@@ -72,8 +72,8 @@ export default function Dashboard() {
       <StateText loading={dash.loading} error={dash.error} empty={!d} />
 
       {d && <>
-        {/* Saviny AI - Smart Savings Coach Spotlight Banner */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-[#102a29] via-[#18423f] to-[#102a29] text-white p-5 rounded-3xl shadow-lg border border-emerald-400/30 flex flex-col md:flex-row items-center justify-between gap-4 mb-2">
+        {/* Pennywise AI - Smart Savings Coach Spotlight Banner */}
+        <div className="relative overflow-hidden bg-gradient-to-r from-[#102a29] via-[#18423f] to-[#102a29] text-white p-5 rounded-3xl shadow-lg border border-emerald-400/30 flex flex-col md:flex-row items-center justify-between gap-4 mb-3">
           <div className="flex items-center gap-4">
             <div className="relative shrink-0">
               <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-emerald-400 to-teal-200 text-gray-950 flex items-center justify-center text-3xl shadow-inner font-bold">
@@ -88,7 +88,7 @@ export default function Dashboard() {
                 </span>
                 <span className="text-xs text-emerald-200/80">Diagnostic en direct</span>
               </div>
-              <h3 className="text-base sm:text-lg font-bold text-white mt-0.5">Saviny AI – Smart Savings Coach</h3>
+              <h3 className="text-base sm:text-lg font-bold text-white mt-0.5">Pennywise AI – Smart Savings Coach</h3>
               <p className="text-xs text-gray-300 max-w-xl">
                 Capacité d'épargne estimée à <strong className="text-emerald-300">{formatMoney(Math.max(0, d.income - d.expenses), currency)}</strong> ce mois-ci. {d.activeGoals} objectif(s) analysé(s) pour prévenir tout risque de retard.
               </p>
@@ -97,7 +97,7 @@ export default function Dashboard() {
           <button
             type="button"
             onClick={() => {
-              const coachBtn = document.querySelector('button[aria-label="Ouvrir Saviny AI - Smart Savings Coach"]') as HTMLButtonElement;
+              const coachBtn = document.querySelector('button[aria-label="Ouvrir Pennywise AI - Smart Savings Coach"], button[aria-label="Ouvrir Saviny AI - Smart Savings Coach"]') as HTMLButtonElement;
               if (coachBtn) coachBtn.click();
               else navigate("/assistant");
             }}
@@ -107,6 +107,73 @@ export default function Dashboard() {
             <span>→</span>
           </button>
         </div>
+
+        {/* AI Quick Shortcuts Grid - METTRE EN VALEUR L'IA */}
+        <section className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <button
+            type="button"
+            onClick={() => setModal("transaction")}
+            className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/50 dark:from-emerald-950/30 dark:to-teal-950/20 border border-emerald-200/80 dark:border-emerald-800/40 text-left hover:shadow-md hover:border-emerald-400 transition-all group cursor-pointer"
+          >
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-sm shadow-sm group-hover:scale-110 transition-transform">📷</span>
+              <span className="text-[10px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded">OCR</span>
+            </div>
+            <strong className="text-xs sm:text-sm font-bold text-gray-900 dark:text-white block">Scanner un reçu</strong>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-snug">Extraction &amp; saisie automatique par IA</p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const coachBtn = document.querySelector('button[aria-label="Ouvrir Pennywise AI - Smart Savings Coach"], button[aria-label="Ouvrir Saviny AI - Smart Savings Coach"]') as HTMLButtonElement;
+              if (coachBtn) coachBtn.click();
+            }}
+            className="p-3.5 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/50 dark:from-amber-950/30 dark:to-orange-950/20 border border-amber-200/80 dark:border-amber-800/40 text-left hover:shadow-md hover:border-amber-400 transition-all group cursor-pointer"
+          >
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="w-8 h-8 rounded-xl bg-amber-600 text-white flex items-center justify-center text-sm shadow-sm group-hover:scale-110 transition-transform">🧙‍♂️</span>
+              <span className="text-[10px] font-black text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded">COACH</span>
+            </div>
+            <strong className="text-xs sm:text-sm font-bold text-gray-900 dark:text-white block">Plan d'Épargne</strong>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-snug">Objectif hebdo &amp; diagnostic de dépenses</p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const coachBtn = document.querySelector('button[aria-label="Ouvrir Pennywise AI - Smart Savings Coach"], button[aria-label="Ouvrir Saviny AI - Smart Savings Coach"]') as HTMLButtonElement;
+              if (coachBtn) {
+                coachBtn.click();
+                setTimeout(() => {
+                  const whatIfTab = document.querySelectorAll('button[role="tab"]')[1] as HTMLButtonElement;
+                  if (whatIfTab) whatIfTab.click();
+                }, 200);
+              }
+            }}
+            className="p-3.5 rounded-2xl bg-gradient-to-br from-purple-50 to-indigo-50/50 dark:from-purple-950/30 dark:to-indigo-950/20 border border-purple-200/80 dark:border-purple-800/40 text-left hover:shadow-md hover:border-purple-400 transition-all group cursor-pointer"
+          >
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center text-sm shadow-sm group-hover:scale-110 transition-transform">🔮</span>
+              <span className="text-[10px] font-black text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/40 px-1.5 py-0.5 rounded">SIMUL</span>
+            </div>
+            <strong className="text-xs sm:text-sm font-bold text-gray-900 dark:text-white block">Simulateur What-If</strong>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-snug">Impact loyer, salaire &amp; imprévus</p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate("/transactions")}
+            className="p-3.5 rounded-2xl bg-gradient-to-br from-cyan-50 to-blue-50/50 dark:from-cyan-950/30 dark:to-blue-950/20 border border-cyan-200/80 dark:border-cyan-800/40 text-left hover:shadow-md hover:border-cyan-400 transition-all group cursor-pointer"
+          >
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="w-8 h-8 rounded-xl bg-cyan-600 text-white flex items-center justify-center text-sm shadow-sm group-hover:scale-110 transition-transform">⚡</span>
+              <span className="text-[10px] font-black text-cyan-700 dark:text-cyan-300 bg-cyan-100 dark:bg-cyan-900/40 px-1.5 py-0.5 rounded">ABOS</span>
+            </div>
+            <strong className="text-xs sm:text-sm font-bold text-gray-900 dark:text-white block">Abonnements IA</strong>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-snug">Détectez les prélèvements cachés</p>
+          </button>
+        </section>
 
         <section className="summary-grid">
           {[
@@ -241,7 +308,7 @@ export default function Dashboard() {
         </section>
 
         <section className="card marketplace-card">
-          <SectionTitle title="Marketplace" subtitle="Great finds from the Saviny community" action="Explore marketplace" onAction={() => navigate("/marketplace")} />
+          <SectionTitle title="Marketplace" subtitle="Great finds from the Pennywise community" action="Explore marketplace" onAction={() => navigate("/marketplace")} />
           <div className="market-grid">
             {(listings.data?.items ?? []).map((item) => (
               <article className="listing" key={item.id}>
@@ -258,7 +325,7 @@ export default function Dashboard() {
             ))}
             <div className="sell-card">
               <span><Icon name="store" /></span>
-              <div><h3>Give unused items a new home</h3><p>List safely in your local Saviny community.</p><button onClick={() => navigate("/marketplace/my-listings")}>Sell an item</button></div>
+              <div><h3>Give unused items a new home</h3><p>List safely in your local Pennywise community.</p><button onClick={() => navigate("/marketplace/my-listings")}>Sell an item</button></div>
             </div>
           </div>
         </section>

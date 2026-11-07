@@ -171,7 +171,7 @@ export function SmartCoach({ currency = "USD" }: { currency?: string }) {
             type="button"
             onClick={() => setOpen(true)}
             className="group relative flex items-center gap-3 bg-gradient-to-r from-[#102a29] to-[#1e4a47] text-white pl-4 pr-5 py-3 rounded-full shadow-2xl border border-emerald-400/40 hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer"
-            aria-label="Ouvrir Saviny AI - Smart Savings Coach"
+            aria-label="Ouvrir Pennywise AI - Smart Savings Coach"
           >
             {/* Coach Avatar Circle with glow */}
             <div className="relative">
@@ -187,7 +187,7 @@ export function SmartCoach({ currency = "USD" }: { currency?: string }) {
                   ✨ AI Coach
                 </span>
               </div>
-              <span className="text-sm font-bold text-white block">Coach Saviny</span>
+              <span className="text-sm font-bold text-white block">Coach Pennywise</span>
             </div>
           </button>
         </div>
@@ -205,7 +205,7 @@ export function SmartCoach({ currency = "USD" }: { currency?: string }) {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-base sm:text-lg font-bold leading-tight">Saviny AI – Smart Savings Coach</h2>
+                    <h2 className="text-base sm:text-lg font-bold leading-tight">Pennywise AI – Smart Savings Coach</h2>
                     <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-2 py-0.5 rounded-full font-semibold">
                       Gemini
                     </span>
@@ -266,7 +266,7 @@ export function SmartCoach({ currency = "USD" }: { currency?: string }) {
                 {loadingPlan && (
                   <div className="py-12 flex flex-col items-center justify-center gap-3 text-gray-500">
                     <div className="w-10 h-10 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-sm font-medium">Coach Saviny analyse vos comptes et transactions...</p>
+                    <p className="text-sm font-medium">Coach Pennywise analyse vos comptes et transactions...</p>
                   </div>
                 )}
 
@@ -425,7 +425,7 @@ export function SmartCoach({ currency = "USD" }: { currency?: string }) {
                     disabled={simulating || scenarioInput.trim().length < 3}
                     className="w-full py-3 bg-[#102a29] text-white font-bold text-xs rounded-xl hover:bg-[#1a3f3e] disabled:opacity-50 transition cursor-pointer flex items-center justify-center gap-2 shadow"
                   >
-                    {simulating ? "🧙‍♂️ Coach Saviny simule l'impact..." : "🔮 Lancer la simulation"}
+                    {simulating ? "🧙‍♂️ Coach Pennywise simule l'impact..." : "🔮 Lancer la simulation"}
                   </button>
                 </div>
 
@@ -498,7 +498,7 @@ export function SmartCoach({ currency = "USD" }: { currency?: string }) {
                   {messages.length === 0 ? (
                     <div className="text-center py-8 text-gray-400 text-xs">
                       <div className="text-3xl mb-2">🧙‍♂️</div>
-                      <p className="font-semibold text-gray-700">Coach Saviny est à votre écoute.</p>
+                      <p className="font-semibold text-gray-700">Coach Pennywise est à votre écoute.</p>
                       <p className="text-[11px] mt-1">
                         Posez-moi n'importe quelle question sur vos comptes, vos dépenses réelles ou vos objectifs.
                       </p>
@@ -535,7 +535,7 @@ export function SmartCoach({ currency = "USD" }: { currency?: string }) {
                     type="text"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
-                    placeholder="Demandez un conseil à Coach Saviny..."
+                    placeholder="Demandez un conseil à Coach Pennywise..."
                     className="flex-1 px-3.5 py-2.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:border-emerald-700 bg-white"
                     disabled={chatBusy}
                   />
@@ -562,3 +562,4 @@ export function SmartCoach({ currency = "USD" }: { currency?: string }) {
     </>
   );
 }
+

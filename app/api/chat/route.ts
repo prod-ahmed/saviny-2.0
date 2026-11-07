@@ -13,7 +13,7 @@ export async function POST(req: Request) {
 
   const result = streamText({
     model: google(AI_MODEL_ID),
-    system: "Tu es l'assistant financier intelligent de Saviny. Réponds de manière concise, courtoise et utile en français.",
+    system: "Tu es l'assistant financier intelligent de Pennywise. Réponds de manière concise, courtoise et utile en français.",
     messages,
   });
 

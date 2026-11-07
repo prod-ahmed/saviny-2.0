@@ -118,6 +118,37 @@ export default function Transactions() {
   return (
     <div className="content module-page">
       <PageHeader eyebrow="MONEY IN MOTION" title="Transactions" description="Review every movement across your accounts." action="Add transaction" onAction={() => setAdding(true)} />
+
+      {/* AI Receipt Scanner Quick Spotlight */}
+      <div className="my-3 p-4 rounded-3xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-indigo-500/15 border-2 border-emerald-400/40 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-[#102a29] dark:text-emerald-50">
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center text-xl shadow-md shrink-0">
+            📷
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white px-2 py-0.5 rounded-full shadow-sm">
+                ✨ IA VISION GEMINI
+              </span>
+              <span className="text-xs text-emerald-800 dark:text-emerald-300 font-bold">Zéro saisie manuelle</span>
+            </div>
+            <p className="text-xs sm:text-sm font-bold text-gray-900 dark:text-white mt-0.5">
+              Scannez votre ticket de caisse en direct avec analyse laser
+            </p>
+            <p className="text-xs text-gray-600 dark:text-gray-300">
+              Pennywise extrait le montant, la date, la description et catégorise automatiquement la dépense.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          className="shrink-0 px-4 py-2.5 rounded-2xl bg-[#102a29] dark:bg-emerald-600 hover:bg-[#1a3f3e] text-white text-xs font-bold shadow-md hover:shadow-lg transition flex items-center gap-2 cursor-pointer"
+        >
+          <span>📷 Scanner un reçu</span>
+          <span>⚡</span>
+        </button>
+      </div>
       <div className="module-stats">
         <div><span>Income this month</span><strong className="income-text">+{formatMoney(s?.income ?? 0, currency)}</strong></div>
         <div><span>Expenses this month</span><strong>{formatMoney(s?.expenses ?? 0, currency)}</strong></div>
@@ -163,8 +194,9 @@ export default function Transactions() {
 
       <section className="card module-card">
         <AiPanel<{ subscriptions: Subscription[] }>
-          title="Repeating payments"
-          action="Find subscriptions"
+          title="Détection des abonnements & charges récurrentes"
+          action="Détecter mes abonnements"
+          description="L'IA Pennywise analyse vos débits passés pour isoler automatiquement vos abonnements récurrents et vous aider à traquer les doublons ou dépenses superflues."
           run={() => api("/ai/finance/subscriptions")}
           render={(result) => <Subscriptions items={result.subscriptions} currency={currency} />}
         />

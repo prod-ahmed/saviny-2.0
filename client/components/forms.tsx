@@ -239,7 +239,7 @@ export function TransactionForm({ accounts, categories, initial, onSaved, onCanc
         <div className="flex items-center gap-2.5">
           <span className="text-xl">✨</span>
           <div>
-            <span className="text-xs font-bold text-emerald-950 block">Assistance Intelligente Saviny AI</span>
+            <span className="text-xs font-bold text-emerald-950 block">Assistance Intelligente Pennywise AI</span>
             <span className="text-[11px] text-emerald-800">Scan optique de reçus & catégorisation automatique</span>
           </div>
         </div>
@@ -489,11 +489,39 @@ export function ListingForm({ initial, onSaved, onCancel }: FormProps<Listing>) 
       <label>Condition<select name="condition" defaultValue={initial?.condition ?? "Good"}>
         {CONDITIONS.map((c) => <option key={c}>{c}</option>)}
       </select></label>
-      <div className="ai-inline">
-        <button type="button" className="secondary" onClick={suggestPrice} disabled={ai.busy}>AI: suggest price</button>
-        <button type="button" className="secondary" onClick={writeDescription} disabled={ai.busy}>AI: write description</button>
+      <div className="my-3 p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border border-emerald-400/40 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-black text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+            <span>✨</span> ASSISTANCE IA PENNYWISE
+          </span>
+          <span className="text-[10px] text-gray-500 dark:text-gray-400">Google Gemini</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={suggestPrice}
+            disabled={ai.busy}
+            className="px-3 py-2 rounded-xl bg-white dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 text-xs font-bold text-emerald-900 dark:text-emerald-100 hover:bg-emerald-50 shadow-sm flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
+          >
+            <span>🏷️</span>
+            <span>{ai.busy ? "Estimation..." : "Estimer le prix par IA"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={writeDescription}
+            disabled={ai.busy}
+            className="px-3 py-2 rounded-xl bg-white dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 text-xs font-bold text-emerald-900 dark:text-emerald-100 hover:bg-emerald-50 shadow-sm flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
+          >
+            <span>✍️</span>
+            <span>{ai.busy ? "Rédaction..." : "Rédiger l'annonce par IA"}</span>
+          </button>
+        </div>
+        {priceNote && (
+          <p className="text-xs text-emerald-800 dark:text-emerald-200 bg-emerald-100/70 dark:bg-emerald-900/40 p-2.5 rounded-xl border border-emerald-300/40 font-medium mt-1">
+            💡 {priceNote}
+          </p>
+        )}
       </div>
-      {priceNote && <p className="muted-small">{priceNote}</p>}
       <label>Description<textarea required name="description" maxLength={2000} defaultValue={initial?.description} placeholder="Describe the item honestly" /></label>
       <AiNotice />
       <div className="photo-picker">
@@ -565,7 +593,7 @@ export function ContactForm({ listing, onSaved, onCancel }: { listing: Listing; 
   return (
     <form className="flow-form" onSubmit={submit}>
       <label>Message to {listing.seller.name}<textarea required name="body" maxLength={1000} placeholder="Is it still available? Can we meet nearby?" /></label>
-      <p className="muted-small">Never share bank details. Saviny does not process payments in version 1.</p>
+      <p className="muted-small">Never share bank details. Pennywise does not process payments directly in version 1.</p>
       <FormError message={error} />
       <Actions busy={busy} onCancel={onCancel} label="Send message" />
     </form>

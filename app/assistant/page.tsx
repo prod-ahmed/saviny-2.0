@@ -19,7 +19,7 @@ export default function AssistantPage() {
     {
       id: "welcome",
       role: "assistant",
-      content: "Bonjour ! Je suis votre assistant financier intelligent Saviny. Comment puis-je vous aider aujourd'hui ?",
+      content: "Bonjour ! Je suis votre assistant financier intelligent Pennywise. Comment puis-je vous aider aujourd'hui ?",
     },
   ]);
   const [input, setInput] = useState("");

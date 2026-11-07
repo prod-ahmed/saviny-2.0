@@ -173,3 +173,4 @@ saviny/
 ## 📜 Licence & Auteur
 Projet développé dans le cadre du module **Modern Mobile Applications (PWA, Next.js, React 19, MongoDB & AI)**.
 Licence MIT.
+
