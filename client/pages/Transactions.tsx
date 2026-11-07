@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { Confirm, EmptyState, Icon, Modal, PageHeader, StateText } from "../components/ui";
 import { TransactionForm } from "../components/forms";
-import { AiPanel } from "../components/AiPanel";
 import { api } from "../lib/api";
 import { formatMoney, longDate, shortDate } from "../lib/format";
 import { useApi, useSession } from "../lib/hooks";
@@ -119,27 +118,6 @@ export default function Transactions() {
     <div className="content module-page">
       <PageHeader eyebrow="MONEY IN MOTION" title="Transactions" description="Review every movement across your accounts." action="Add transaction" onAction={() => setAdding(true)} />
 
-      {/* Receipt Scanner Action Bar */}
-      <div className="my-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-slate-900 dark:text-slate-100">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
-              Saisie assistée
-            </span>
-            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Numérisation de reçus (OCR)</span>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Téléversez un ticket pour extraire montant, date et catégorie sans saisie manuelle.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setAdding(true)}
-          className="shrink-0 px-3.5 py-2 rounded-lg bg-[#0e2422] hover:bg-[#153430] text-white text-xs font-semibold shadow-sm transition active:scale-95 cursor-pointer"
-        >
-          Numériser un reçu
-        </button>
-      </div>
       <div className="module-stats">
         <div><span>Income this month</span><strong className="income-text">+{formatMoney(s?.income ?? 0, currency)}</strong></div>
         <div><span>Expenses this month</span><strong>{formatMoney(s?.expenses ?? 0, currency)}</strong></div>
@@ -181,16 +159,6 @@ export default function Transactions() {
             ))}
           </div>
         )}
-      </section>
-
-      <section className="card module-card">
-        <AiPanel<{ subscriptions: Subscription[] }>
-          title="Abonnements & Prélèvements Périodiques"
-          action="Analyser les récurrences"
-          description="Identification des débits réguliers pour suivre vos engagements et repérer d'éventuels doublons."
-          run={() => api("/ai/finance/subscriptions")}
-          render={(result) => <Subscriptions items={result.subscriptions} currency={currency} />}
-        />
       </section>
 
       {selected && (

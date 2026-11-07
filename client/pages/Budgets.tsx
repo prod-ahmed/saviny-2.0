@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { BudgetForm } from "../components/forms";
-import { AiPanel } from "../components/AiPanel";
 import { Confirm, EmptyState, Icon, Modal, PageHeader, StateText } from "../components/ui";
 import { api } from "../lib/api";
 import { formatMoney, shortDate } from "../lib/format";
@@ -25,29 +24,6 @@ function BudgetList() {
     <div className="content module-page">
       <PageHeader eyebrow="PLAN WITH CONFIDENCE" title="Budget management" description="Set thoughtful limits and stay ahead of upcoming commitments." action="Create budget" onAction={() => setCreating(true)} />
       <div className="module-tabs"><button className="active">Active budgets</button><button onClick={() => navigate("/bills")}>Bills &amp; scheduled payments</button></div>
-      <AiPanel<{ headline: string; tips: string[] }>
-        title="Audit & Recommandations Budgétaires"
-        action="Analyser les plafonds"
-        description="Comparaison de vos plafonds déclarés et de votre rythme effectif de dépenses pour prévenir les dépassements."
-        run={() => api("/ai/budgets/insights")}
-        render={(result) => (
-          <div className="space-y-2">
-            <p className="font-semibold text-slate-900 dark:text-white">
-              {result.headline}
-            </p>
-            {result.tips.length > 0 && (
-              <ul className="space-y-1 list-none pl-0">
-                {result.tips.map((tip, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
-                    <span className="text-emerald-600 font-semibold">•</span>
-                    <span>{tip}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-      />
       <StateText loading={budgets.loading} error={budgets.error} empty={!budgets.data} />
       {budgets.data && budgets.data.length === 0 && (
         <EmptyState title="No budgets yet" text="A budget limits how much you spend in one or more categories each period." action="Create budget" onAction={() => setCreating(true)} />

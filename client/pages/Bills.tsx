@@ -55,37 +55,6 @@ export default function Bills() {
         <button className={tab === "upcoming" ? "active" : ""} onClick={() => setTab("upcoming")}>Upcoming</button>
         <button className={tab === "paid" ? "active" : ""} onClick={() => setTab("paid")}>Paid</button>
       </div>
-
-      {/* What-If Simulation Callout for Bills */}
-      <div className="my-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-slate-900 dark:text-slate-100">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
-              Modélisation
-            </span>
-            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Simulation d'impact budgétaire</span>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Une nouvelle dépense récurrente ? Testez son effet sur vos réserves et vos objectifs.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            const coachBtn = document.querySelector('button[aria-label="Ouvrir Coach Penny"], button[aria-label="Ouvrir Pennywise AI - Smart Savings Coach"]') as HTMLButtonElement;
-            if (coachBtn) {
-              coachBtn.click();
-              setTimeout(() => {
-                const whatIfTab = document.querySelectorAll('button[role="tab"]')[1] as HTMLButtonElement;
-                if (whatIfTab) whatIfTab.click();
-              }, 200);
-            }
-          }}
-          className="shrink-0 px-3.5 py-2 rounded-lg bg-[#0e2422] hover:bg-[#153430] text-white text-xs font-semibold shadow-sm transition active:scale-95 cursor-pointer"
-        >
-          Simuler l'impact
-        </button>
-      </div>
       <StateText loading={bills.loading} error={bills.error} empty={!bills.data} />
       {error && <p className="auth-error" role="alert">{error}</p>}
       {bills.data && shown.length === 0 && (

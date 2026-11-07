@@ -1,6 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Confirm, FormError, Modal, PageHeader } from "../components/ui";
-import { AiPanel } from "../components/AiPanel";
 import { CurrencySelect } from "../components/CurrencySelect";
 import { PasswordForm } from "../components/forms";
 import { api } from "../lib/api";
@@ -48,23 +47,7 @@ export function Profile() {
 
   return (
     <div className="content module-page">
-      <PageHeader eyebrow="YOUR ACCOUNT" title="My profile" description="Manage the information connected to your personal Saviny account." />
-      <section className="card">
-        <AiPanel<{ profile: string; strengths: string[]; nextSteps: string[] }>
-          title="My money profile"
-          action="Describe my habits"
-          run={() => api("/ai/profile/summary")}
-          render={(result) => (
-            <>
-              <p><strong>{result.profile}</strong></p>
-              {result.strengths.length > 0 && <p>Strengths</p>}
-              {result.strengths.length > 0 && <ul>{result.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul>}
-              {result.nextSteps.length > 0 && <p>Next steps</p>}
-              {result.nextSteps.length > 0 && <ul>{result.nextSteps.map((s, i) => <li key={i}>{s}</li>)}</ul>}
-            </>
-          )}
-        />
-      </section>
+      <PageHeader eyebrow="YOUR ACCOUNT" title="My profile" description="Manage the information connected to your personal Pennywise account." />
       <div className="settings-layout">
         <section className="card profile-summary">
           <span className="profile-avatar">{(user.firstName[0] ?? "") + (user.lastName[0] ?? "")}</span>
@@ -206,7 +189,7 @@ export function Settings() {
               ))}
             </div>
             <h3>Display &amp; currency</h3>
-            <p>Amounts across Saviny are shown in this currency.</p>
+            <p>Amounts across Pennywise are shown in this currency.</p>
             <label>Currency</label>
             <CurrencySelect value={currency} onChange={setCurrency} />
             <div className="form-actions"><button className="primary" disabled={busy} onClick={saveCurrency}>Save currency</button></div>
@@ -222,7 +205,7 @@ export function Settings() {
 
           {tab === "Data & account" && <>
             <h3>Data &amp; account</h3>
-            <p>Your records stay in your Saviny account until you ask for them to be deleted.</p>
+            <p>Your records stay in your Pennywise account until you ask for them to be deleted.</p>
             <div className="danger-zone">
               <h3>Delete account</h3>
               <p>Request permanent deletion of your profile and associated data.</p>

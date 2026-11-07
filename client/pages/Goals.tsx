@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { ContributionForm, GoalForm } from "../components/forms";
-import { AiPanel } from "../components/AiPanel";
 import { Confirm, EmptyState, Icon, Modal, PageHeader, StateText } from "../components/ui";
 import { api } from "../lib/api";
 import { formatMoney, longDate, monthYear, shortDate } from "../lib/format";
@@ -115,34 +114,6 @@ function GoalDetail({ id }: { id: string }) {
               {g.status === "active" && <button className="secondary" onClick={() => setConfirm("archive")}>Archive</button>}
               <button className="danger-button" onClick={() => setConfirm("delete")}>Delete</button>
             </div>
-          </section>
-          <section className="card">
-            <AiPanel<{ monthlyTarget: number; milestones: string[]; advice: string }>
-              title="Plan d'Épargne Prévisionnel"
-              action="Calculer l'échéancier"
-              description="Calcul de la contribution mensuelle recommandée et des étapes clés pour atteindre cet objectif."
-              run={() => api(`/ai/goals/${id}/plan`, { method: "POST" })}
-              render={(plan) => (
-                <div className="space-y-2.5">
-                  <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 text-xs">
-                    Contribution recommandée : <strong className="text-emerald-700 dark:text-emerald-400 font-semibold">{formatMoney(plan.monthlyTarget, currency)} / mois</strong>. {plan.advice}
-                  </div>
-                  {plan.milestones.length > 0 && (
-                    <div className="space-y-1 pt-1">
-                      <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Jalons recommandés :</span>
-                      <ul className="space-y-1 pl-0 list-none">
-                        {plan.milestones.map((m, i) => (
-                          <li key={i} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
-                            <span className="text-emerald-600 font-semibold">•</span>
-                            <span>{m}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-            />
           </section>
 
           <section className="card activity-card">

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { AccountForm } from "../components/forms";
-import { AiPanel } from "../components/AiPanel";
 import { Confirm, EmptyState, Icon, Modal, PageHeader, StateText } from "../components/ui";
 import { api } from "../lib/api";
 import { formatMoney } from "../lib/format";
@@ -44,29 +43,6 @@ export default function Accounts() {
   return (
     <div className="content module-page">
       <PageHeader eyebrow="YOUR MONEY" title="Financial accounts" description="Balances are calculated from your recorded transactions." action="Add account" onAction={() => setAdding(true)} />
-      <AiPanel<{ headline: string; tips: string[] }>
-        title="Audit de Trésorerie & Liquidités"
-        action="Auditer mes comptes"
-        description="Évaluation de la répartition de vos liquidités entre comptes de dépôt et comptes d'épargne."
-        run={() => api("/ai/accounts/review")}
-        render={(result) => (
-          <div className="space-y-2">
-            <p className="font-semibold text-slate-900 dark:text-white">
-              {result.headline}
-            </p>
-            {result.tips.length > 0 && (
-              <ul className="space-y-1 list-none pl-0">
-                {result.tips.map((tip, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
-                    <span className="text-emerald-600 font-semibold">•</span>
-                    <span>{tip}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-      />
       <StateText loading={accounts.loading} error={accounts.error} empty={!accounts.data} />
       {accounts.data && active.length === 0 && (
         <EmptyState title="No accounts yet" text="Add a checking, savings, cash or credit account to start recording transactions." action="Add account" onAction={() => setAdding(true)} />
