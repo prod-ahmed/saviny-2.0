@@ -5,17 +5,18 @@ Design de référence (ne pas le modifier visuellement) : `/Users/ahmedbt/Deskto
 
 ## Règles générales
 
-- Backend : NestJS 11 dans `api/`. Frontend : React 19 + Vite 8 + Tailwind v4 dans `web/`.
-- Préfixe API : `/api`. En dev, Vite proxifie `/api` vers `http://localhost:3000`. En prod, Nest sert `web/dist` et renvoie `index.html` pour toute route hors `/api`.
+- Application unique : Next.js 16 (App Router) à la racine. API : route handlers `app/api/[...path]/route.ts` branchés sur un dispatcher (`server/http/router.ts`). Écrans : React 19 + react-router + Tailwind v4 dans `client/`, montés par la page catch-all `app/[[...slug]]`. Temps réel : Socket.IO sur `/api/socket.io`, attaché au serveur HTTP de `server.ts`.
+- Préfixe API : `/api`. Un seul port (3000 par défaut) : Next.js sert l'application (shell `index.html` pour toute route hors `/api`) et les routes API.
 - Montants : nombres décimaux (2 décimales) côté JSON. Dates : ISO `YYYY-MM-DD` ou ISO complet.
 - Erreurs : `{ "statusCode": number, "message": string | string[], "error": string }` (format Nest standard). Messages en anglais (comme le design).
 - Données personnelles : jamais dans les logs, jamais en clair dans le stockage navigateur (seul le jeton de session peut être dans `localStorage`, clé `saviny.token`).
 - Mots de passe : `crypto.scrypt` (node:crypto), jamais en clair, jamais renvoyés.
 - Jetons de session : jeton opaque aléatoire (32 octets, base64url) envoyé en `Authorization: Bearer <token>`. Côté serveur on ne stocke que son SHA-256. Déconnexion = révocation.
 - Droits : chaque ressource est filtrée par `userId` ; un utilisateur ne voit ni ne modifie les données d'un autre (404 si ressource non trouvée pour lui). Modération : rôle `moderator` (utilisateurs listés dans la variable d'env `MODERATOR_EMAILS`).
-- Persistance v1 : fichier JSON `api/data/db.json` (écriture atomique : fichier temporaire puis `rename`). Le dossier `data/` est dans `.gitignore`. Ne jamais supprimer ce fichier automatiquement.
+- Persistance : MongoDB (base `saviny` par défaut, variables `MONGODB_URI` et `MONGODB_DB`). Les pièces jointes restent dans `data/media` (variable `MEDIA_DIR`). L'ancienne base SQLite `data/saviny.db` est conservée comme sauvegarde, n'est jamais modifiée et ne doit jamais être supprimée automatiquement. Le dossier `data/` est dans `.gitignore`.
+- Assistants IA : Vercel AI SDK avec Google Gemini (`gemini-2.5-flash`), clé dans `GOOGLE_GENERATIVE_AI_API_KEY` (`.env.local`). Chaque réponse IA indique que les données ont été envoyées à Google. Sans clé, les fonctions IA répondent 503.
 - Seed démo : si `SEED_DEMO=true`, création au démarrage de l'utilisateur `alex.morgan@example.com` / mot de passe `saviny-demo` avec des données qui reproduisent exactement le design (comptes, transactions, budgets, objectifs, annonces, discussions). Ne rien seed sinon.
-- Sécurité HTTP : `helmet`, `ValidationPipe` (whitelist, forbidNonWhitelisted, transform), CORS restreint (`CORS_ORIGIN`, défaut `http://localhost:5173`), rate limit (`@nestjs/throttler`) sur `/api/auth/*`.
+- Sécurité HTTP : en-têtes (`nosniff`, `SAMEORIGIN`, `Referrer-Policy`), validation `zod` stricte (clés inconnues refusées, 400 sinon), CORS restreint (`CORS_ORIGIN`, défaut `http://localhost:5173`), rate limit en mémoire sur `/api/auth/*` (10/min inscription, 5/min connexion) et global (300/min par adresse).
 
 ## Endpoints
 
@@ -111,3 +112,24 @@ Design de référence (ne pas le modifier visuellement) : `/Users/ahmedbt/Deskto
 - Installable : `manifest.webmanifest` (name `Saviny`, short_name `Saviny`, theme `#102a29`, background `#f6f8f7`, display `standalone`, icônes 192/512 générées depuis `public/assets/saviny-logo.png`).
 - Service worker : met en cache le shell (HTML, JS, CSS, logo, manifest) et uniquement les réponses publiques de lecture (`/api/community/rules`, `/api/posts` et `/api/community/trending`). **Jamais** les données personnelles (comptes, transactions, budgets, objectifs, messages, notifications). Hors ligne : écran "Offline" et écritures désactivées avec le message "Connection required — nothing was saved".
 - Un bandeau indique l'état réseau réel (`navigator.onLine` + événements `online`/`offline`).
+
+## Connexion Google et GitHub
+
+- `GET /api/auth/providers` → `{ google: boolean, github: boolean }` : un bouton n'est affiché que si le fournisseur est configuré.
+- `GET /api/auth/oauth/:provider/start` (`google` ou `github`) → redirection vers le fournisseur avec un `state` à usage unique (10 min).
+- `GET /api/auth/oauth/:provider/callback` → crée ou retrouve le compte, puis redirige vers `/login?oauth=<code>`. Le code est à usage unique et expire en 2 min. En cas d'échec : `/login?oauth_error=oauth_denied | oauth_unverified | oauth_failed | oauth_unavailable`.
+- `POST /api/auth/oauth/exchange` `{ code }` → `{ token, user }`. Le jeton de session n'apparaît jamais dans une URL.
+- Un compte est retrouvé par identité fournisseur, puis par e-mail **vérifié** (Google `email_verified`, GitHub e-mail principal et vérifié). Sinon un nouveau compte est créé, sans mot de passe utilisable.
+
+Variables d'environnement :
+
+| Variable | Rôle |
+|---|---|
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | identifiants de l'application OAuth Google |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | identifiants de l'application OAuth GitHub |
+| `PUBLIC_URL` | origine publique de l'application (défaut `http://localhost:3000`) |
+
+URL de redirection à enregistrer chez chaque fournisseur :
+
+- Google : `${PUBLIC_URL}/api/auth/oauth/google/callback`
+- GitHub : `${PUBLIC_URL}/api/auth/oauth/github/callback`

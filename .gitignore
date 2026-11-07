@@ -4,5 +4,10 @@ data/
 web/dist/
 *.log
 .env*
+!.env.example
 *.tsbuildinfo
 .DS_Store
+
+# Next.js build output and generated files
+.next/
+out/
