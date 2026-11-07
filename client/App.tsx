@@ -205,14 +205,14 @@ export default function App() {
             ))}
           </nav>
           <div className="sidebar-footer">
-            <div className="help-card bg-gradient-to-br from-emerald-950/40 to-teal-900/30 border border-emerald-500/20 p-3.5 rounded-2xl">
-              <span><Icon name="sparkle" size={18} /></span>
-              <strong>Découvrir Pennywise</strong>
-              <p>Explorez les outils IA et le Coach d'épargne.</p>
-              <button onClick={() => setShowTour(true)}>Voir la démo <Icon name="arrow" size={15} /></button>
+            <div className="help-card bg-white/5 border border-white/10 p-3 rounded-xl">
+              <span className="text-emerald-400"><Icon name="sparkle" size={16} /></span>
+              <strong>Guide Pennywise</strong>
+              <p>Découvrez les fonctionnalités clés et le Coach Penny.</p>
+              <button onClick={() => setShowTour(true)}>Ouvrir le guide <Icon name="arrow" size={14} /></button>
             </div>
             <button className="logout" onClick={() => setLogoutOpen(true)}><Icon name="logout" /> Log out</button>
-            <p>© 2025 Pennywise · v2.0 AI</p>
+            <p>© 2025 Pennywise</p>
           </div>
         </aside>
 
@@ -228,11 +228,11 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setShowTour(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-500/15 to-teal-500/15 hover:from-emerald-500/25 hover:to-teal-500/25 text-emerald-800 dark:text-emerald-200 border border-emerald-500/30 transition shadow-sm cursor-pointer"
-                title="Ouvrir le guide et la démo Pennywise"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition cursor-pointer"
+                title="Ouvrir le guide d'utilisation"
               >
-                <span className="text-sm">✨</span>
-                <span className="hidden sm:inline">Guide & Démo</span>
+                <Icon name="sparkle" size={14} />
+                <span className="hidden sm:inline">Guide &amp; Démo</span>
               </button>
               <span className="online"><i /> {online ? "Online" : "Offline"}</span>
               <span className="date"><Icon name="calendar" size={17} />{currentDate}</span>

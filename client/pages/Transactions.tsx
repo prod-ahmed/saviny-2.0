@@ -119,34 +119,25 @@ export default function Transactions() {
     <div className="content module-page">
       <PageHeader eyebrow="MONEY IN MOTION" title="Transactions" description="Review every movement across your accounts." action="Add transaction" onAction={() => setAdding(true)} />
 
-      {/* AI Receipt Scanner Quick Spotlight */}
-      <div className="my-3 p-4 rounded-3xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-indigo-500/15 border-2 border-emerald-400/40 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-[#102a29] dark:text-emerald-50">
-        <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center text-xl shadow-md shrink-0">
-            📷
+      {/* Receipt Scanner Action Bar */}
+      <div className="my-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-slate-900 dark:text-slate-100">
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+              Saisie assistée
+            </span>
+            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Numérisation de reçus (OCR)</span>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white px-2 py-0.5 rounded-full shadow-sm">
-                ✨ IA VISION GEMINI
-              </span>
-              <span className="text-xs text-emerald-800 dark:text-emerald-300 font-bold">Zéro saisie manuelle</span>
-            </div>
-            <p className="text-xs sm:text-sm font-bold text-gray-900 dark:text-white mt-0.5">
-              Scannez votre ticket de caisse en direct avec analyse laser
-            </p>
-            <p className="text-xs text-gray-600 dark:text-gray-300">
-              Pennywise extrait le montant, la date, la description et catégorise automatiquement la dépense.
-            </p>
-          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Téléversez un ticket pour extraire montant, date et catégorie sans saisie manuelle.
+          </p>
         </div>
         <button
           type="button"
           onClick={() => setAdding(true)}
-          className="shrink-0 px-4 py-2.5 rounded-2xl bg-[#102a29] dark:bg-emerald-600 hover:bg-[#1a3f3e] text-white text-xs font-bold shadow-md hover:shadow-lg transition flex items-center gap-2 cursor-pointer"
+          className="shrink-0 px-3.5 py-2 rounded-lg bg-[#0e2422] hover:bg-[#153430] text-white text-xs font-semibold shadow-sm transition active:scale-95 cursor-pointer"
         >
-          <span>📷 Scanner un reçu</span>
-          <span>⚡</span>
+          Numériser un reçu
         </button>
       </div>
       <div className="module-stats">
@@ -194,9 +185,9 @@ export default function Transactions() {
 
       <section className="card module-card">
         <AiPanel<{ subscriptions: Subscription[] }>
-          title="Détection des abonnements & charges récurrentes"
-          action="Détecter mes abonnements"
-          description="L'IA Pennywise analyse vos débits passés pour isoler automatiquement vos abonnements récurrents et vous aider à traquer les doublons ou dépenses superflues."
+          title="Abonnements & Prélèvements Périodiques"
+          action="Analyser les récurrences"
+          description="Identification des débits réguliers pour suivre vos engagements et repérer d'éventuels doublons."
           run={() => api("/ai/finance/subscriptions")}
           render={(result) => <Subscriptions items={result.subscriptions} currency={currency} />}
         />

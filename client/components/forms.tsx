@@ -166,22 +166,21 @@ export function TransactionForm({ accounts, categories, initial, onSaved, onCanc
       {ticketPreview && (
         <div className="relative mb-4 bg-gray-950 text-white rounded-2xl overflow-hidden p-3.5 border border-emerald-900/50 shadow-md">
           <div className="flex items-center justify-between mb-2.5 text-xs">
-            <span className="font-semibold flex items-center gap-1.5 text-emerald-400">
-              <span>🧾</span>
-              <span>Ticket de caisse importé</span>
+            <span className="font-semibold text-emerald-400">
+              Reçu importé
             </span>
             <div className="flex items-center gap-2">
-              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                isScanning ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse" : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+              <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
+                isScanning ? "bg-amber-500/20 text-amber-300 border border-amber-500/30" : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
               }`}>
-                {isScanning ? `Scan en cours (${scanProgress}%)` : "✓ Scanné (100%)"}
+                {isScanning ? `Analyse (${scanProgress}%)` : "Extraction terminée (100%)"}
               </span>
               <button
                 type="button"
                 onClick={() => { setTicketPreview(null); setScannedInfo(""); }}
                 className="text-gray-400 hover:text-white text-xs px-2 py-0.5 rounded bg-gray-800 transition"
               >
-                ✕ Fermer
+                Fermer
               </button>
             </div>
           </div>
@@ -234,33 +233,28 @@ export function TransactionForm({ accounts, categories, initial, onSaved, onCanc
         </select></label>
       </div>
       <label>Description<input name="description" maxLength={120} defaultValue={initial?.description} placeholder="What was this for?" /></label>
-      {/* Prominent High-Visibility AI Features Banner */}
-      <div className="p-3.5 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50/50 rounded-2xl border border-emerald-300/70 my-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
-        <div className="flex items-center gap-2.5">
-          <span className="text-xl">✨</span>
-          <div>
-            <span className="text-xs font-bold text-emerald-950 block">Assistance Intelligente Pennywise AI</span>
-            <span className="text-[11px] text-emerald-800">Scan optique de reçus & catégorisation automatique</span>
-          </div>
+      {/* Smart Form Assistance Bar */}
+      <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 my-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+        <div>
+          <span className="text-xs font-semibold text-slate-900 dark:text-white block">Assistance de saisie</span>
+          <span className="text-[11px] text-slate-500 dark:text-slate-400">Numérisation optique ou suggestion automatique</span>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={suggestCategory}
             disabled={ai.busy}
-            className="px-3 py-1.5 bg-white hover:bg-emerald-50 text-emerald-900 font-semibold text-xs rounded-xl border border-emerald-300 transition shadow-2xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            className="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 text-slate-700 dark:text-slate-200 font-medium text-xs rounded-lg border border-slate-200 dark:border-slate-700 transition cursor-pointer disabled:opacity-50"
           >
-            <span>🏷️</span>
-            <span>{ai.busy ? "Analyse..." : "Suggérer catégorie"}</span>
+            {ai.busy ? "Analyse..." : "Suggérer catégorie"}
           </button>
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={ai.busy}
-            className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-800 hover:to-teal-800 text-white font-bold text-xs rounded-xl shadow transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+            className="px-3.5 py-1.5 bg-[#0e2422] hover:bg-[#153430] text-white font-semibold text-xs rounded-lg transition cursor-pointer disabled:opacity-50"
           >
-            <span>📷</span>
-            <span>{ai.busy ? "Scan en cours..." : "Scanner un reçu (OCR)"}</span>
+            {ai.busy ? "Numérisation..." : "Numériser un reçu (OCR)"}
           </button>
           <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(e) => scanReceipt(e.target.files?.[0])} />
         </div>
@@ -489,36 +483,34 @@ export function ListingForm({ initial, onSaved, onCancel }: FormProps<Listing>) 
       <label>Condition<select name="condition" defaultValue={initial?.condition ?? "Good"}>
         {CONDITIONS.map((c) => <option key={c}>{c}</option>)}
       </select></label>
-      <div className="my-3 p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border border-emerald-400/40 space-y-2">
+      <div className="my-3 p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-black text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
-            <span>✨</span> ASSISTANCE IA PENNYWISE
+          <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+            Aide à la publication
           </span>
-          <span className="text-[10px] text-gray-500 dark:text-gray-400">Google Gemini</span>
+          <span className="text-[10px] text-slate-400">Assistant Pennywise</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <button
             type="button"
             onClick={suggestPrice}
             disabled={ai.busy}
-            className="px-3 py-2 rounded-xl bg-white dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 text-xs font-bold text-emerald-900 dark:text-emerald-100 hover:bg-emerald-50 shadow-sm flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
+            className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 transition cursor-pointer"
           >
-            <span>🏷️</span>
-            <span>{ai.busy ? "Estimation..." : "Estimer le prix par IA"}</span>
+            {ai.busy ? "Estimation..." : "Estimer le prix conseillé"}
           </button>
           <button
             type="button"
             onClick={writeDescription}
             disabled={ai.busy}
-            className="px-3 py-2 rounded-xl bg-white dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 text-xs font-bold text-emerald-900 dark:text-emerald-100 hover:bg-emerald-50 shadow-sm flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
+            className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 transition cursor-pointer"
           >
-            <span>✍️</span>
-            <span>{ai.busy ? "Rédaction..." : "Rédiger l'annonce par IA"}</span>
+            {ai.busy ? "Rédaction..." : "Générer la description"}
           </button>
         </div>
         {priceNote && (
-          <p className="text-xs text-emerald-800 dark:text-emerald-200 bg-emerald-100/70 dark:bg-emerald-900/40 p-2.5 rounded-xl border border-emerald-300/40 font-medium mt-1">
-            💡 {priceNote}
+          <p className="text-xs text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 leading-relaxed mt-1">
+            {priceNote}
           </p>
         )}
       </div>

@@ -1,54 +1,41 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { api, getToken } from "../lib/api";
+import { useState, useEffect, useRef } from "react";
 import { formatMoney } from "../lib/format";
-import { AI_NOTICE, aiErrorText } from "../lib/ai";
-import { Icon } from "./ui";
+import { api } from "../lib/api";
+import { AI_NOTICE } from "../lib/ai";
 
-interface GoalRisk {
-  id: string;
-  title: string;
-  targetAmount: number;
-  savedAmount: number;
-  remaining: number;
-  progress: number;
-  targetDate: string | null;
-  monthsLeft: number | null;
-  requiredMonthly: number | null;
-  risk: "on_track" | "medium" | "high";
-  riskReason: string;
-}
-
-interface CoachPlanData {
+interface SavingsPlan {
   math: {
-    balance: number;
-    income: number;
-    expenses: number;
+    totalBalance: number;
+    monthlyIncome: number;
+    monthlyExpenses: number;
     netCashFlow: number;
     savingsCapacity: number;
-    recommendedMonthly: number;
     recommendedWeekly: number;
-    goals: GoalRisk[];
-    isInsufficient: boolean;
+    recommendedMonthly: number;
+    goals: {
+      id: string;
+      title: string;
+      progress: number;
+      remaining: number;
+      requiredMonthly: number;
+      risk: "low" | "medium" | "high";
+      riskReason?: string;
+    }[];
   };
   coach: {
-    healthVerdict: string;
     healthScore: number;
+    healthVerdict: string;
     coachSummary: string;
     spendingCuts: { title: string; tip: string; savingEst: string }[];
-    goalAdvice: { goalTitle: string; advice: string }[];
-    actionSteps: string[];
   };
 }
 
-interface SimulationResult {
+interface ScenarioSimulation {
   summary: string;
+  verdict: "favorable" | "attention" | "critique";
   monthlyChange: number;
-  verdict: "favorable" | "neutre" | "attention" | "critique";
-  verdictExplanation: string;
   newSavingsCapacity: number;
-  effects: { area: string; effect: string }[];
   goalTimelineImpact: string;
-  risks: string[];
   recommendedSteps: string[];
 }
 
@@ -58,136 +45,152 @@ interface ChatMessage {
 }
 
 const PRESETS = [
-  "Acheter un nouvel ordinateur à 900$ payé en 3 fois",
-  "Réduire les repas au restaurant de 60$ par mois",
-  "Déménager dans un appartement avec un loyer supérieur de 150$",
-  "Prendre un travail d'appoint qui rapporte 250$ net par mois",
+  "Acheter un vélo à 350$ et réduire les sorties de 50$/mois",
+  "Nouveau travail avec augmentation de 300$/mois",
+  "Abonnement mensuel de sport à 45$/mois",
 ];
 
 export function SmartCoach({ currency = "USD" }: { currency?: string }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"plan" | "whatif" | "chat">("plan");
 
-  // Coach Plan State
-  const [plan, setPlan] = useState<CoachPlanData | null>(null);
+  // Plan state
+  const [plan, setPlan] = useState<SavingsPlan | null>(null);
   const [loadingPlan, setLoadingPlan] = useState(false);
   const [planError, setPlanError] = useState("");
 
-  // What-If Simulation State
+  // What-If simulation state
   const [scenarioInput, setScenarioInput] = useState("");
-  const [simulation, setSimulation] = useState<SimulationResult | null>(null);
+  const [simulation, setSimulation] = useState<ScenarioSimulation | null>(null);
   const [simulating, setSimulating] = useState(false);
   const [simError, setSimError] = useState("");
 
-  // Live Chat State
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  // Chat state
   const [chatInput, setChatInput] = useState("");
-  const [chatBusy, setChatBusy] = useState(false);
-  const [chatError, setChatError] = useState("");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatSending, setChatSending] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
 
   const fetchPlan = async () => {
     setLoadingPlan(true);
     setPlanError("");
     try {
-      const res = await api<CoachPlanData>("/ai/coach/plan");
-      setPlan(res);
-    } catch (err: any) {
-      setPlanError(aiErrorText(err));
+      const data = await api<SavingsPlan>("/ai/coach/plan");
+      setPlan(data);
+    } catch (err) {
+      setPlanError(err instanceof Error ? err.message : "Impossible de charger le plan d'épargne");
     } finally {
       setLoadingPlan(false);
     }
   };
 
   useEffect(() => {
-    if (open && !plan) {
+    if (open && !plan && !loadingPlan) {
       fetchPlan();
     }
   }, [open]);
 
-  const runSimulation = async (textToSimulate?: string) => {
-    const text = (textToSimulate ?? scenarioInput).trim();
-    if (!text || simulating) return;
+  useEffect(() => {
+    if (logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight;
+    }
+  }, [chatMessages, chatSending]);
+
+  const runSimulation = async (text?: string) => {
+    const q = (text ?? scenarioInput).trim();
+    if (q.length < 3) return;
     setSimulating(true);
     setSimError("");
     try {
-      const res = await api<SimulationResult>("/ai/coach/simulate", {
+      const result = await api<ScenarioSimulation>("/ai/coach/simulate", {
         method: "POST",
-        json: { scenario: text },
+        json: { scenario: q },
       });
-      setSimulation(res);
-    } catch (err: any) {
-      setSimError(aiErrorText(err));
+      setSimulation(result);
+    } catch (err) {
+      setSimError(err instanceof Error ? err.message : "Erreur lors de la simulation");
     } finally {
       setSimulating(false);
     }
   };
 
-  const sendChatMessage = async (e: FormEvent) => {
+  const sendChatMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    const q = chatInput.trim();
-    if (!q || chatBusy) return;
-    const history: ChatMessage[] = [...messages, { role: "user", content: q }];
-    setMessages([...history, { role: "assistant", content: "" }]);
+    const prompt = chatInput.trim();
+    if (!prompt || chatSending) return;
+
     setChatInput("");
-    setChatBusy(true);
-    setChatError("");
+    const userMsg: ChatMessage = { role: "user", content: prompt };
+    const nextList = [...chatMessages, userMsg];
+    setChatMessages(nextList);
+    setChatSending(true);
+
     try {
-      const token = getToken();
-      const res = await fetch("/api/ai/profile/chat", {
+      const res = await fetch("/api/chat", {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-          ...(token ? { authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ messages: history }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: nextList.map((m) => ({ role: m.role, content: m.content })),
+        }),
       });
-      if (!res.ok || !res.body) {
-        throw new Error("L'assistant n'a pas pu répondre.");
-      }
-      const reader = res.body.getReader();
+
+      if (!res.ok) throw new Error("Erreur de connexion au coach");
+
+      const reader = res.body?.getReader();
       const decoder = new TextDecoder();
-      let answer = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        answer += decoder.decode(value, { stream: true });
-        setMessages([...history, { role: "assistant", content: answer }]);
-        logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
+      let assistantText = "";
+
+      setChatMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          assistantText += chunk;
+          setChatMessages((prev) => {
+            const copy = [...prev];
+            copy[copy.length - 1] = { role: "assistant", content: assistantText };
+            return copy;
+          });
+        }
       }
-    } catch (err: any) {
-      setChatError(aiErrorText(err));
+    } catch (err) {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Désolé, une erreur est survenue lors de l'échange avec Penny. Veuillez réessayer.",
+        },
+      ]);
     } finally {
-      setChatBusy(false);
+      setChatSending(false);
     }
   };
 
   return (
     <>
-      {/* Charismatic Floating Coach Avatar Button */}
+      {/* Floating Action Button */}
       {!open && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3">
+        <div className="fixed bottom-6 right-6 z-40">
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="group relative flex items-center gap-3 bg-gradient-to-r from-[#102a29] to-[#1e4a47] text-white pl-4 pr-5 py-3 rounded-full shadow-2xl border border-emerald-400/40 hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer"
-            aria-label="Ouvrir Pennywise AI - Smart Savings Coach"
+            className="flex items-center gap-3 bg-[#0e2422] hover:bg-[#143330] text-white pl-2.5 pr-4 py-2 rounded-full shadow-lg border border-slate-700/60 hover:shadow-xl transition-all duration-200 cursor-pointer"
+            aria-label="Ouvrir Coach Penny"
           >
-            {/* Coach Avatar Circle with glow */}
             <div className="relative">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-200 text-gray-950 flex items-center justify-center text-xl shadow-inner font-bold">
-                🧙‍♂️
-              </div>
-              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-400 border-2 border-[#102a29] rounded-full animate-pulse" />
+              <img
+                src="/assets/penny-avatar-thumb.png"
+                alt="Coach Penny"
+                className="w-9 h-9 rounded-full object-cover border border-emerald-400/50 shadow-sm"
+              />
+              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 border-2 border-[#0e2422] rounded-full" />
             </div>
 
             <div className="text-left">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider bg-emerald-400/20 text-emerald-300 px-1.5 py-0.5 rounded">
-                  ✨ AI Coach
-                </span>
-              </div>
-              <span className="text-sm font-bold text-white block">Coach Pennywise</span>
+              <span className="text-[10px] font-medium text-emerald-400 uppercase tracking-wider block">Smart Coach</span>
+              <span className="text-xs font-semibold text-white block -mt-0.5">Coach Penny</span>
             </div>
           </button>
         </div>
@@ -195,28 +198,30 @@ export function SmartCoach({ currency = "USD" }: { currency?: string }) {
 
       {/* Main Coach Interface Drawer/Modal */}
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="w-full sm:max-w-xl bg-white text-[#102a29] rounded-t-3xl sm:rounded-3xl shadow-2xl border border-emerald-900/20 flex flex-col max-h-[92vh] sm:max-h-[85vh] overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full sm:max-w-xl bg-white dark:bg-[#11201f] text-[#102a29] dark:text-emerald-50 rounded-t-2xl sm:rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[92vh] sm:max-h-[85vh] overflow-hidden">
             {/* Coach Header */}
-            <header className="bg-gradient-to-r from-[#102a29] via-[#163836] to-[#102a29] text-white p-4 sm:p-5 flex items-center justify-between shadow">
+            <header className="bg-[#0e2422] text-white px-5 py-4 flex items-center justify-between border-b border-slate-800">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-400 to-teal-200 text-gray-950 flex items-center justify-center text-2xl shadow">
-                  🧙‍♂️
-                </div>
+                <img
+                  src="/assets/penny-avatar-thumb.png"
+                  alt="Penny"
+                  className="w-11 h-11 rounded-full object-cover border-2 border-emerald-500/40 shadow-sm"
+                />
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-base sm:text-lg font-bold leading-tight">Pennywise AI – Smart Savings Coach</h2>
-                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-2 py-0.5 rounded-full font-semibold">
-                      Gemini
+                    <h2 className="text-base font-semibold leading-tight text-white">Coach Penny</h2>
+                    <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800/60 px-2 py-0.5 rounded-full font-medium">
+                      Assistant IA
                     </span>
                   </div>
-                  <p className="text-xs text-emerald-200/80">Votre conseiller financier personnel intelligent</p>
+                  <p className="text-xs text-slate-300 mt-0.5">Plan d'épargne personnalisé et simulations financières</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition text-sm cursor-pointer"
+                className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white flex items-center justify-center transition text-sm cursor-pointer"
                 aria-label="Fermer"
               >
                 ✕
@@ -224,54 +229,54 @@ export function SmartCoach({ currency = "USD" }: { currency?: string }) {
             </header>
 
             {/* Navigation Tabs */}
-            <div className="grid grid-cols-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold">
+            <div className="grid grid-cols-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold">
               <button
                 type="button"
                 onClick={() => setTab("plan")}
-                className={`py-3 text-center transition border-b-2 flex items-center justify-center gap-1.5 ${
+                className={`py-3 text-center transition border-b-2 ${
                   tab === "plan"
-                    ? "border-emerald-700 text-emerald-950 bg-white"
-                    : "border-transparent text-gray-500 hover:text-gray-900"
+                    ? "border-emerald-700 text-emerald-950 dark:text-white bg-white dark:bg-[#11201f]"
+                    : "border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white"
                 }`}
               >
-                <span>📊</span> Plan & Diagnostic
+                Plan & Diagnostic
               </button>
               <button
                 type="button"
                 onClick={() => setTab("whatif")}
-                className={`py-3 text-center transition border-b-2 flex items-center justify-center gap-1.5 ${
+                className={`py-3 text-center transition border-b-2 ${
                   tab === "whatif"
-                    ? "border-emerald-700 text-emerald-950 bg-white"
-                    : "border-transparent text-gray-500 hover:text-gray-900"
+                    ? "border-emerald-700 text-emerald-950 dark:text-white bg-white dark:bg-[#11201f]"
+                    : "border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white"
                 }`}
               >
-                <span>🔮</span> Scénarios (What-If)
+                Scénarios (What-If)
               </button>
               <button
                 type="button"
                 onClick={() => setTab("chat")}
-                className={`py-3 text-center transition border-b-2 flex items-center justify-center gap-1.5 ${
+                className={`py-3 text-center transition border-b-2 ${
                   tab === "chat"
-                    ? "border-emerald-700 text-emerald-950 bg-white"
-                    : "border-transparent text-gray-500 hover:text-gray-900"
+                    ? "border-emerald-700 text-emerald-950 dark:text-white bg-white dark:bg-[#11201f]"
+                    : "border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white"
                 }`}
               >
-                <span>💬</span> Chat Direct
+                Chat Direct
               </button>
             </div>
 
             {/* Tab 1: Coach Plan & Diagnostics */}
             {tab === "plan" && (
-              <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+              <div className="p-5 overflow-y-auto space-y-4 flex-1">
                 {loadingPlan && (
-                  <div className="py-12 flex flex-col items-center justify-center gap-3 text-gray-500">
-                    <div className="w-10 h-10 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-sm font-medium">Coach Pennywise analyse vos comptes et transactions...</p>
+                  <div className="py-12 flex flex-col items-center justify-center gap-3 text-slate-500">
+                    <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                    <p className="text-sm font-medium">Penny analyse vos comptes et flux récents...</p>
                   </div>
                 )}
 
                 {planError && (
-                  <div className="p-3 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200">
+                  <div className="p-3.5 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 text-xs rounded-xl border border-red-200 dark:border-red-800">
                     {planError}
                   </div>
                 )}
@@ -279,91 +284,93 @@ export function SmartCoach({ currency = "USD" }: { currency?: string }) {
                 {plan && !loadingPlan && (
                   <>
                     {/* Health Score & Verdict Card */}
-                    <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-white p-4 rounded-2xl border border-emerald-200/60 shadow-sm">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
-                          <span>✨</span> Diagnostic du Coach
+                    <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                          Bilan de santé financière
                         </span>
-                        <span className="text-xs font-bold px-2.5 py-1 bg-emerald-600 text-white rounded-full">
-                          Score : {plan.coach.healthScore}/100
+                        <span className="text-xs font-bold px-2.5 py-0.5 bg-emerald-800 text-white rounded-md">
+                          Score : {plan.coach.healthScore} / 100
                         </span>
                       </div>
-                      <h3 className="text-base font-bold text-emerald-950 mb-1">{plan.coach.healthVerdict}</h3>
-                      <p className="text-xs text-gray-700 leading-relaxed">{plan.coach.coachSummary}</p>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">{plan.coach.healthVerdict}</h3>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{plan.coach.coachSummary}</p>
                     </div>
 
-                    {/* Savings Capacity Gauge */}
+                    {/* Savings Capacity Metrics */}
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-white p-3.5 rounded-2xl border border-gray-200/80 shadow-sm">
-                        <span className="text-[11px] text-gray-500 block mb-0.5 font-medium">Capacité d'épargne mensuelle</span>
-                        <span className="text-xl font-extrabold text-emerald-900">
+                      <div className="bg-white dark:bg-slate-900/30 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 block mb-1">Capacité mensuelle</span>
+                        <span className="text-xl font-bold text-slate-900 dark:text-white">
                           {formatMoney(plan.math.savingsCapacity, currency)}
                         </span>
-                        <span className="text-[10px] text-gray-400 block mt-1">Revenus - Dépenses réelles</span>
+                        <span className="text-[10px] text-slate-400 block mt-1">Revenus - Charges réelles</span>
                       </div>
-                      <div className="bg-white p-3.5 rounded-2xl border border-gray-200/80 shadow-sm">
-                        <span className="text-[11px] text-gray-500 block mb-0.5 font-medium">Objectif conseillé (par semaine)</span>
-                        <span className="text-xl font-extrabold text-teal-800">
+                      <div className="bg-white dark:bg-slate-900/30 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 block mb-1">Cible hebdomadaire</span>
+                        <span className="text-xl font-bold text-emerald-700 dark:text-emerald-400">
                           {formatMoney(plan.math.recommendedWeekly, currency)}
                         </span>
-                        <span className="text-[10px] text-gray-400 block mt-1">Épargne sans effort</span>
+                        <span className="text-[10px] text-slate-400 block mt-1">Rythme conseillé</span>
                       </div>
                     </div>
 
-                    {/* Active Goals & Delay Risks */}
-                    <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-sm space-y-3">
-                      <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center justify-between">
-                        <span>🎯 Suivi des Objectifs & Détection des Risques</span>
-                        <span className="text-[10px] text-gray-400 font-normal">Calcul backend</span>
-                      </h4>
+                    {/* Active Goals & Timeline Monitoring */}
+                    <div className="bg-white dark:bg-slate-900/30 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                          Suivi des objectifs d'épargne
+                        </h4>
+                        <span className="text-[10px] text-slate-400">Calcul actuariel backend</span>
+                      </div>
 
                       {plan.math.goals.length === 0 ? (
-                        <p className="text-xs text-gray-400 py-2">Aucun objectif actif. Créez-en un dans la section Objectifs !</p>
+                        <p className="text-xs text-slate-400 py-2">Aucun objectif actif. Créez-en un dans la section Objectifs.</p>
                       ) : (
                         plan.math.goals.map((g) => (
-                          <div key={g.id} className="p-2.5 bg-gray-50 rounded-xl space-y-1.5 border border-gray-100">
+                          <div key={g.id} className="p-3 bg-slate-50 dark:bg-slate-900/80 rounded-lg space-y-1.5 border border-slate-100 dark:border-slate-800">
                             <div className="flex items-center justify-between text-xs">
-                              <span className="font-bold text-gray-900">{g.title}</span>
+                              <span className="font-semibold text-slate-900 dark:text-white">{g.title}</span>
                               <span
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
                                   g.risk === "high"
-                                    ? "bg-red-100 text-red-700"
+                                    ? "bg-red-50 text-red-700 border border-red-200"
                                     : g.risk === "medium"
-                                    ? "bg-amber-100 text-amber-800"
-                                    : "bg-emerald-100 text-emerald-800"
+                                    ? "bg-amber-50 text-amber-800 border border-amber-200"
+                                    : "bg-emerald-50 text-emerald-800 border border-emerald-200"
                                 }`}
                               >
-                                {g.risk === "high" ? "🔴 Risque de retard" : g.risk === "medium" ? "🟡 Attention au rythme" : "🟢 Sur les rails"}
+                                {g.risk === "high" ? "Risque de retard" : g.risk === "medium" ? "Rythme juste" : "En bonne voie"}
                               </span>
                             </div>
-                            <div className="flex justify-between text-[11px] text-gray-500">
+                            <div className="flex justify-between text-[11px] text-slate-500">
                               <span>Progression : {g.progress}%</span>
                               <span>Reste : {formatMoney(g.remaining, currency)}</span>
                             </div>
-                            <div className="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden">
+                            <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
                               <div className="bg-emerald-600 h-full rounded-full" style={{ width: `${Math.min(100, g.progress)}%` }} />
                             </div>
                             {g.riskReason && (
-                              <p className="text-[10px] text-gray-600 italic">💡 {g.riskReason}</p>
+                              <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1">{g.riskReason}</p>
                             )}
                           </div>
                         ))
                       )}
                     </div>
 
-                    {/* Top Spending Cuts Recommendations */}
-                    <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-sm space-y-2.5">
-                      <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
-                        💡 Recommandations personnalisées pour réduire vos dépenses
+                    {/* Actionable Recommendations */}
+                    <div className="bg-white dark:bg-slate-900/30 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5">
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                        Recommandations d'optimisation budgétaire
                       </h4>
                       <div className="space-y-2">
                         {plan.coach.spendingCuts.map((cut, idx) => (
-                          <div key={idx} className="p-2.5 rounded-xl bg-gray-50 border border-gray-100 flex items-start justify-between gap-3 text-xs">
+                          <div key={idx} className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800 flex items-start justify-between gap-3 text-xs">
                             <div>
-                              <p className="font-bold text-gray-900">{cut.title}</p>
-                              <p className="text-[11px] text-gray-600 mt-0.5">{cut.tip}</p>
+                              <p className="font-semibold text-slate-900 dark:text-white">{cut.title}</p>
+                              <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">{cut.tip}</p>
                             </div>
-                            <span className="shrink-0 font-bold text-emerald-700 bg-emerald-100/60 px-2 py-1 rounded-lg text-[11px]">
+                            <span className="shrink-0 font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 text-[11px]">
                               {cut.savingEst}
                             </span>
                           </div>
@@ -374,9 +381,9 @@ export function SmartCoach({ currency = "USD" }: { currency?: string }) {
                     <button
                       type="button"
                       onClick={fetchPlan}
-                      className="w-full py-2.5 text-xs text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition"
+                      className="w-full py-2.5 text-xs text-slate-600 dark:text-slate-300 hover:text-slate-900 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg font-medium transition cursor-pointer"
                     >
-                      🔄 Rafraîchir l'analyse du coach
+                      Actualiser l'analyse
                     </button>
                   </>
                 )}
@@ -385,24 +392,24 @@ export function SmartCoach({ currency = "USD" }: { currency?: string }) {
 
             {/* Tab 2: What-If Scenario Simulator */}
             {tab === "whatif" && (
-              <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+              <div className="p-5 overflow-y-auto space-y-4 flex-1">
                 <div>
-                  <h3 className="text-sm font-bold text-gray-900">Simulateur de Scénarios Financiers</h3>
-                  <p className="text-xs text-gray-500">
-                    Testez une décision financière (achat, réduction de dépenses, nouveau revenu) avant de la concrétiser.
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">Simulateur prévisionnel</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Modélisez l'impact d'une décision financière sur votre trésorerie et la date d'atteinte de vos objectifs.
                   </p>
                 </div>
 
                 {/* Preset Chips */}
                 <div className="space-y-1.5">
-                  <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Scénarios rapides :</span>
+                  <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Hypothèses courantes :</span>
                   <div className="flex flex-wrap gap-1.5">
                     {PRESETS.map((p, i) => (
                       <button
                         key={i}
                         type="button"
                         onClick={() => { setScenarioInput(p); runSimulation(p); }}
-                        className="text-[11px] bg-gray-100 hover:bg-emerald-100 hover:text-emerald-950 text-gray-700 px-2.5 py-1.5 rounded-lg text-left transition"
+                        className="text-[11px] bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 hover:text-emerald-900 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-lg text-left transition border border-slate-200/60 dark:border-slate-700"
                       >
                         {p}
                       </button>
@@ -416,16 +423,16 @@ export function SmartCoach({ currency = "USD" }: { currency?: string }) {
                     rows={3}
                     value={scenarioInput}
                     onChange={(e) => setScenarioInput(e.target.value)}
-                    placeholder="Ex: Je réduis mon budget sorties de 80$ et j'achète un vélo à 350$ le mois prochain..."
-                    className="w-full p-3 text-xs rounded-xl border border-gray-200 focus:outline-none focus:border-emerald-700"
+                    placeholder="Ex: Augmentation de loyer de 120$/mois à partir de juin, avec coupe de 40$ sur les abonnements..."
+                    className="w-full p-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-emerald-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
                   />
                   <button
                     type="button"
                     onClick={() => runSimulation()}
                     disabled={simulating || scenarioInput.trim().length < 3}
-                    className="w-full py-3 bg-[#102a29] text-white font-bold text-xs rounded-xl hover:bg-[#1a3f3e] disabled:opacity-50 transition cursor-pointer flex items-center justify-center gap-2 shadow"
+                    className="w-full py-2.5 bg-[#0e2422] hover:bg-[#143330] text-white font-semibold text-xs rounded-lg disabled:opacity-50 transition cursor-pointer flex items-center justify-center gap-2"
                   >
-                    {simulating ? "🧙‍♂️ Coach Pennywise simule l'impact..." : "🔮 Lancer la simulation"}
+                    {simulating ? "Modélisation en cours..." : "Calculer l'impact financier"}
                   </button>
                 </div>
 
@@ -437,11 +444,11 @@ export function SmartCoach({ currency = "USD" }: { currency?: string }) {
 
                 {/* Simulation Result */}
                 {simulation && (
-                  <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50 via-teal-50/50 to-white border border-emerald-200 shadow-sm space-y-3 animate-fade-in text-xs">
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-3 animate-fadeIn text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-emerald-950 text-sm">Résultat de la simulation</span>
+                      <span className="font-semibold text-slate-900 dark:text-white text-xs">Verdict prévisionnel</span>
                       <span
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
+                        className={`px-2.5 py-0.5 rounded text-[10px] font-semibold uppercase ${
                           simulation.verdict === "favorable"
                             ? "bg-emerald-100 text-emerald-800"
                             : simulation.verdict === "attention"
@@ -453,33 +460,33 @@ export function SmartCoach({ currency = "USD" }: { currency?: string }) {
                       </span>
                     </div>
 
-                    <p className="text-gray-800 leading-relaxed font-medium">{simulation.summary}</p>
+                    <p className="text-slate-800 dark:text-slate-200 leading-relaxed font-normal">{simulation.summary}</p>
 
                     <div className="grid grid-cols-2 gap-2 pt-1">
-                      <div className="p-2.5 bg-white rounded-xl border border-gray-100">
-                        <span className="text-[10px] text-gray-500 block">Impact mensuel estimé</span>
-                        <span className="text-base font-bold text-emerald-800">
+                      <div className="p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/80 dark:border-slate-800">
+                        <span className="text-[10px] text-slate-500 block">Variation nette estimée</span>
+                        <span className="text-sm font-bold text-slate-900 dark:text-white">
                           {simulation.monthlyChange >= 0 ? "+" : ""}{formatMoney(simulation.monthlyChange, currency)}/mois
                         </span>
                       </div>
-                      <div className="p-2.5 bg-white rounded-xl border border-gray-100">
-                        <span className="text-[10px] text-gray-500 block">Nouvelle capacité d'épargne</span>
-                        <span className="text-base font-bold text-gray-900">
+                      <div className="p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/80 dark:border-slate-800">
+                        <span className="text-[10px] text-slate-500 block">Nouvelle capacité mensuelle</span>
+                        <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
                           {formatMoney(simulation.newSavingsCapacity, currency)}
                         </span>
                       </div>
                     </div>
 
                     {simulation.goalTimelineImpact && (
-                      <div className="p-2.5 bg-white/80 rounded-xl border border-emerald-100 text-[11px] text-emerald-900">
-                        <strong>🎯 Impact sur vos objectifs :</strong> {simulation.goalTimelineImpact}
+                      <div className="p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/80 dark:border-slate-800 text-[11px] text-slate-700 dark:text-slate-300">
+                        <strong>Impact sur les objectifs :</strong> {simulation.goalTimelineImpact}
                       </div>
                     )}
 
                     {simulation.recommendedSteps?.length > 0 && (
-                      <div>
-                        <span className="font-bold text-gray-800 block mb-1">Étapes recommandées par le coach :</span>
-                        <ul className="list-disc list-inside space-y-0.5 text-gray-600 text-[11px]">
+                      <div className="pt-1">
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 block mb-1">Recommandations :</span>
+                        <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-400 text-[11px]">
                           {simulation.recommendedSteps.map((step, i) => (
                             <li key={i}>{step}</li>
                           ))}
@@ -495,54 +502,55 @@ export function SmartCoach({ currency = "USD" }: { currency?: string }) {
             {tab === "chat" && (
               <div className="flex flex-col flex-1 overflow-hidden">
                 <div className="flex-1 p-4 overflow-y-auto space-y-3" ref={logRef}>
-                  {messages.length === 0 ? (
-                    <div className="text-center py-8 text-gray-400 text-xs">
-                      <div className="text-3xl mb-2">🧙‍♂️</div>
-                      <p className="font-semibold text-gray-700">Coach Pennywise est à votre écoute.</p>
-                      <p className="text-[11px] mt-1">
-                        Posez-moi n'importe quelle question sur vos comptes, vos dépenses réelles ou vos objectifs.
+                  {chatMessages.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400 text-xs">
+                      <img
+                        src="/assets/penny-avatar-thumb.png"
+                        alt="Penny"
+                        className="w-12 h-12 rounded-full mx-auto mb-2 object-cover border border-slate-200"
+                      />
+                      <p className="font-semibold text-slate-700 dark:text-slate-200">Coach Penny est à votre écoute</p>
+                      <p className="text-[11px] mt-1 text-slate-500 max-w-xs mx-auto">
+                        Posez vos questions sur vos dépenses récentes, vos prévisions d'épargne ou la gestion de votre budget.
                       </p>
                     </div>
                   ) : (
-                    messages.map((m, i) => (
-                      <div key={i} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                    chatMessages.map((m, i) => (
+                      <div key={i} className={`flex gap-2.5 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                         {m.role !== "user" && (
-                          <div className="w-7 h-7 rounded-full bg-emerald-800 text-white flex items-center justify-center text-xs shrink-0">
-                            🧙‍♂️
-                          </div>
+                          <img
+                            src="/assets/penny-avatar-thumb.png"
+                            alt="Penny"
+                            className="w-7 h-7 rounded-full object-cover shrink-0 border border-slate-200"
+                          />
                         )}
                         <div
-                          className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed ${
+                          className={`max-w-[80%] rounded-xl px-3.5 py-2 text-xs leading-relaxed ${
                             m.role === "user"
-                              ? "bg-[#102a29] text-white rounded-br-none"
-                              : "bg-gray-100 text-gray-800 rounded-bl-none"
+                              ? "bg-[#0e2422] text-white rounded-br-none"
+                              : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-bl-none"
                           }`}
                         >
-                          {m.content || (chatBusy ? "Réflexion en cours..." : "")}
+                          {m.content || (chatSending ? "Penny rédige sa réponse..." : "")}
                         </div>
                       </div>
                     ))
                   )}
-                  {chatError && (
-                    <div className="p-2 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200">
-                      {chatError}
-                    </div>
-                  )}
                 </div>
 
-                <form onSubmit={sendChatMessage} className="p-3 bg-gray-50 border-t border-gray-200 flex gap-2">
+                <form onSubmit={sendChatMessage} className="p-3 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex gap-2">
                   <input
                     type="text"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
-                    placeholder="Demandez un conseil à Coach Pennywise..."
-                    className="flex-1 px-3.5 py-2.5 text-xs rounded-xl border border-gray-200 focus:outline-none focus:border-emerald-700 bg-white"
-                    disabled={chatBusy}
+                    placeholder="Posez une question financière à Penny..."
+                    className="flex-1 px-3.5 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-emerald-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                    disabled={chatSending}
                   />
                   <button
                     type="submit"
-                    disabled={chatBusy || !chatInput.trim()}
-                    className="px-4 py-2.5 bg-[#102a29] text-white text-xs font-bold rounded-xl hover:bg-[#1a3f3e] disabled:opacity-50 transition cursor-pointer"
+                    disabled={chatSending || !chatInput.trim()}
+                    className="px-4 py-2 bg-[#0e2422] hover:bg-[#143330] text-white text-xs font-semibold rounded-lg disabled:opacity-50 transition cursor-pointer"
                   >
                     Envoyer
                   </button>
@@ -550,10 +558,10 @@ export function SmartCoach({ currency = "USD" }: { currency?: string }) {
               </div>
             )}
 
-            {/* Footer with Mandatory Privacy notice */}
-            <footer className="p-2.5 bg-gray-50 border-t border-gray-200/60 text-center">
-              <p className="text-[10px] text-gray-400">
-                🔒 <em>Conformité & Confidentialité :</em> {AI_NOTICE}
+            {/* Footer with Notice */}
+            <footer className="p-2.5 bg-slate-50 dark:bg-slate-900 border-t border-slate-200/60 dark:border-slate-800 text-center">
+              <p className="text-[10px] text-slate-400">
+                Notice de confidentialité : {AI_NOTICE}
               </p>
             </footer>
           </div>
@@ -562,4 +570,3 @@ export function SmartCoach({ currency = "USD" }: { currency?: string }) {
     </>
   );
 }
-

@@ -632,9 +632,9 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   position: absolute;
   left: 0;
   right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, transparent, #10b981, #34d399, #10b981, transparent);
-  box-shadow: 0 0 12px #10b981, 0 0 25px #34d399;
+  height: 2px;
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
   animation: laserSweep 1.8s ease-in-out infinite;
   z-index: 20;
 }

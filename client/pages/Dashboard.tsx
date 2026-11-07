@@ -72,77 +72,76 @@ export default function Dashboard() {
       <StateText loading={dash.loading} error={dash.error} empty={!d} />
 
       {d && <>
-        {/* Pennywise AI - Smart Savings Coach Spotlight Banner */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-[#102a29] via-[#18423f] to-[#102a29] text-white p-5 rounded-3xl shadow-lg border border-emerald-400/30 flex flex-col md:flex-row items-center justify-between gap-4 mb-3">
+        {/* Pennywise Coach Financial Summary Card */}
+        <div className="bg-[#0e2422] text-white p-5 rounded-2xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 mb-3 shadow-sm">
           <div className="flex items-center gap-4">
-            <div className="relative shrink-0">
-              <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-emerald-400 to-teal-200 text-gray-950 flex items-center justify-center text-3xl shadow-inner font-bold">
-                🧙‍♂️
-              </div>
-              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-400 border-2 border-[#102a29] rounded-full animate-pulse" />
-            </div>
+            <img
+              src="/assets/penny-avatar-thumb.png"
+              alt="Coach Penny"
+              className="w-12 h-12 rounded-xl object-cover border border-emerald-500/40 shrink-0"
+            />
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider bg-emerald-400/20 text-emerald-300 border border-emerald-400/30 px-2 py-0.5 rounded-full">
-                  ✨ Coach Intelligent IA
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800/60">
+                  Coach Penny
                 </span>
-                <span className="text-xs text-emerald-200/80">Diagnostic en direct</span>
+                <span className="text-xs text-slate-300">Synthèse prévisionnelle</span>
               </div>
-              <h3 className="text-base sm:text-lg font-bold text-white mt-0.5">Pennywise AI – Smart Savings Coach</h3>
-              <p className="text-xs text-gray-300 max-w-xl">
-                Capacité d'épargne estimée à <strong className="text-emerald-300">{formatMoney(Math.max(0, d.income - d.expenses), currency)}</strong> ce mois-ci. {d.activeGoals} objectif(s) analysé(s) pour prévenir tout risque de retard.
+              <h3 className="text-sm sm:text-base font-semibold text-white mt-0.5">Bilan &amp; Capacité d'Épargne</h3>
+              <p className="text-xs text-slate-300 max-w-xl leading-relaxed">
+                Capacité mensuelle estimée à <strong className="text-emerald-400 font-semibold">{formatMoney(Math.max(0, d.income - d.expenses), currency)}</strong>. {d.activeGoals} objectif(s) sous surveillance pour anticiper tout décalage.
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={() => {
-              const coachBtn = document.querySelector('button[aria-label="Ouvrir Pennywise AI - Smart Savings Coach"], button[aria-label="Ouvrir Saviny AI - Smart Savings Coach"]') as HTMLButtonElement;
+              const coachBtn = document.querySelector('button[aria-label="Ouvrir Coach Penny"], button[aria-label="Ouvrir Pennywise AI - Smart Savings Coach"]') as HTMLButtonElement;
               if (coachBtn) coachBtn.click();
               else navigate("/assistant");
             }}
-            className="shrink-0 px-5 py-2.5 bg-gradient-to-r from-emerald-400 to-teal-300 hover:from-emerald-300 hover:to-teal-200 text-gray-950 font-bold text-xs rounded-xl shadow-md transition transform active:scale-95 cursor-pointer flex items-center gap-2"
+            className="shrink-0 px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-medium text-xs rounded-lg transition active:scale-95 cursor-pointer flex items-center gap-1.5"
           >
-            <span>Consulter mon plan d'épargne</span>
+            <span>Consulter le plan</span>
             <span>→</span>
           </button>
         </div>
 
-        {/* AI Quick Shortcuts Grid - METTRE EN VALEUR L'IA */}
+        {/* Professional Financial Tools Grid */}
         <section className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
           <button
             type="button"
             onClick={() => setModal("transaction")}
-            className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/50 dark:from-emerald-950/30 dark:to-teal-950/20 border border-emerald-200/80 dark:border-emerald-800/40 text-left hover:shadow-md hover:border-emerald-400 transition-all group cursor-pointer"
+            className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-left hover:border-emerald-600/60 hover:shadow-sm transition group cursor-pointer"
           >
             <div className="flex items-center justify-between mb-1.5">
-              <span className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-sm shadow-sm group-hover:scale-110 transition-transform">📷</span>
-              <span className="text-[10px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded">OCR</span>
+              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Scanner</span>
+              <span className="text-[10px] text-slate-400">OCR</span>
             </div>
-            <strong className="text-xs sm:text-sm font-bold text-gray-900 dark:text-white block">Scanner un reçu</strong>
-            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-snug">Extraction &amp; saisie automatique par IA</p>
+            <strong className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white block">Numériser un reçu</strong>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">Extraction et saisie automatique</p>
           </button>
 
           <button
             type="button"
             onClick={() => {
-              const coachBtn = document.querySelector('button[aria-label="Ouvrir Pennywise AI - Smart Savings Coach"], button[aria-label="Ouvrir Saviny AI - Smart Savings Coach"]') as HTMLButtonElement;
+              const coachBtn = document.querySelector('button[aria-label="Ouvrir Coach Penny"], button[aria-label="Ouvrir Pennywise AI - Smart Savings Coach"]') as HTMLButtonElement;
               if (coachBtn) coachBtn.click();
             }}
-            className="p-3.5 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/50 dark:from-amber-950/30 dark:to-orange-950/20 border border-amber-200/80 dark:border-amber-800/40 text-left hover:shadow-md hover:border-amber-400 transition-all group cursor-pointer"
+            className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-left hover:border-emerald-600/60 hover:shadow-sm transition group cursor-pointer"
           >
             <div className="flex items-center justify-between mb-1.5">
-              <span className="w-8 h-8 rounded-xl bg-amber-600 text-white flex items-center justify-center text-sm shadow-sm group-hover:scale-110 transition-transform">🧙‍♂️</span>
-              <span className="text-[10px] font-black text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded">COACH</span>
+              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Coach</span>
+              <span className="text-[10px] text-slate-400">Épargne</span>
             </div>
-            <strong className="text-xs sm:text-sm font-bold text-gray-900 dark:text-white block">Plan d'Épargne</strong>
-            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-snug">Objectif hebdo &amp; diagnostic de dépenses</p>
+            <strong className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white block">Plan d'action Penny</strong>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">Objectif hebdo &amp; diagnostic</p>
           </button>
 
           <button
             type="button"
             onClick={() => {
-              const coachBtn = document.querySelector('button[aria-label="Ouvrir Pennywise AI - Smart Savings Coach"], button[aria-label="Ouvrir Saviny AI - Smart Savings Coach"]') as HTMLButtonElement;
+              const coachBtn = document.querySelector('button[aria-label="Ouvrir Coach Penny"], button[aria-label="Ouvrir Pennywise AI - Smart Savings Coach"]') as HTMLButtonElement;
               if (coachBtn) {
                 coachBtn.click();
                 setTimeout(() => {
@@ -151,27 +150,27 @@ export default function Dashboard() {
                 }, 200);
               }
             }}
-            className="p-3.5 rounded-2xl bg-gradient-to-br from-purple-50 to-indigo-50/50 dark:from-purple-950/30 dark:to-indigo-950/20 border border-purple-200/80 dark:border-purple-800/40 text-left hover:shadow-md hover:border-purple-400 transition-all group cursor-pointer"
+            className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-left hover:border-emerald-600/60 hover:shadow-sm transition group cursor-pointer"
           >
             <div className="flex items-center justify-between mb-1.5">
-              <span className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center text-sm shadow-sm group-hover:scale-110 transition-transform">🔮</span>
-              <span className="text-[10px] font-black text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/40 px-1.5 py-0.5 rounded">SIMUL</span>
+              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Simulation</span>
+              <span className="text-[10px] text-slate-400">What-If</span>
             </div>
-            <strong className="text-xs sm:text-sm font-bold text-gray-900 dark:text-white block">Simulateur What-If</strong>
-            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-snug">Impact loyer, salaire &amp; imprévus</p>
+            <strong className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white block">Scénarios prévisionnels</strong>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">Impact loyer, salaire &amp; achats</p>
           </button>
 
           <button
             type="button"
             onClick={() => navigate("/transactions")}
-            className="p-3.5 rounded-2xl bg-gradient-to-br from-cyan-50 to-blue-50/50 dark:from-cyan-950/30 dark:to-blue-950/20 border border-cyan-200/80 dark:border-cyan-800/40 text-left hover:shadow-md hover:border-cyan-400 transition-all group cursor-pointer"
+            className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-left hover:border-emerald-600/60 hover:shadow-sm transition group cursor-pointer"
           >
             <div className="flex items-center justify-between mb-1.5">
-              <span className="w-8 h-8 rounded-xl bg-cyan-600 text-white flex items-center justify-center text-sm shadow-sm group-hover:scale-110 transition-transform">⚡</span>
-              <span className="text-[10px] font-black text-cyan-700 dark:text-cyan-300 bg-cyan-100 dark:bg-cyan-900/40 px-1.5 py-0.5 rounded">ABOS</span>
+              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Détection</span>
+              <span className="text-[10px] text-slate-400">Charges</span>
             </div>
-            <strong className="text-xs sm:text-sm font-bold text-gray-900 dark:text-white block">Abonnements IA</strong>
-            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-snug">Détectez les prélèvements cachés</p>
+            <strong className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white block">Abonnements récurrents</strong>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">Audit des prélèvements réguliers</p>
           </button>
         </section>
 

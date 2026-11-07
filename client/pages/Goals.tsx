@@ -118,22 +118,22 @@ function GoalDetail({ id }: { id: string }) {
           </section>
           <section className="card">
             <AiPanel<{ monthlyTarget: number; milestones: string[]; advice: string }>
-              title="Feuille de route & Plan d'épargne IA"
-              action="Générer mon plan d'épargne"
-              description="L'IA Pennywise calcule la mensualité exacte nécessaire pour atteindre cet objectif à temps et découpe votre parcours en jalons atteignables."
+              title="Plan d'Épargne Prévisionnel"
+              action="Calculer l'échéancier"
+              description="Calcul de la contribution mensuelle recommandée et des étapes clés pour atteindre cet objectif."
               run={() => api(`/ai/goals/${id}/plan`, { method: "POST" })}
               render={(plan) => (
-                <div className="space-y-3">
-                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800 text-emerald-950 dark:text-emerald-100 text-xs sm:text-sm">
-                    💰 Mettez de côté environ <strong className="text-emerald-700 dark:text-emerald-300 font-bold">{formatMoney(plan.monthlyTarget, currency)} / mois</strong>. {plan.advice}
+                <div className="space-y-2.5">
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 text-xs">
+                    Contribution recommandée : <strong className="text-emerald-700 dark:text-emerald-400 font-semibold">{formatMoney(plan.monthlyTarget, currency)} / mois</strong>. {plan.advice}
                   </div>
                   {plan.milestones.length > 0 && (
-                    <div className="space-y-1.5 pt-1">
-                      <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Jalons clés recommandés :</span>
+                    <div className="space-y-1 pt-1">
+                      <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Jalons recommandés :</span>
                       <ul className="space-y-1 pl-0 list-none">
                         {plan.milestones.map((m, i) => (
-                          <li key={i} className="flex items-center gap-2 text-xs sm:text-sm text-gray-700 dark:text-gray-300">
-                            <span className="text-emerald-500 font-bold">🏁</span>
+                          <li key={i} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+                            <span className="text-emerald-600 font-semibold">•</span>
                             <span>{m}</span>
                           </li>
                         ))}

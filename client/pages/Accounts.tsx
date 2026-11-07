@@ -45,21 +45,20 @@ export default function Accounts() {
     <div className="content module-page">
       <PageHeader eyebrow="YOUR MONEY" title="Financial accounts" description="Balances are calculated from your recorded transactions." action="Add account" onAction={() => setAdding(true)} />
       <AiPanel<{ headline: string; tips: string[] }>
-        title="Audit & Analyse de Trésorerie par IA"
+        title="Audit de Trésorerie & Liquidités"
         action="Auditer mes comptes"
-        description="L'IA Pennywise évalue la répartition de vos liquidités entre comptes courants et épargne pour optimiser votre sécurité financière et vos réserves de précaution."
+        description="Évaluation de la répartition de vos liquidités entre comptes de dépôt et comptes d'épargne."
         run={() => api("/ai/accounts/review")}
         render={(result) => (
-          <div className="space-y-3">
-            <p className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <span>📊</span>
-              <span>{result.headline}</span>
+          <div className="space-y-2">
+            <p className="font-semibold text-slate-900 dark:text-white">
+              {result.headline}
             </p>
             {result.tips.length > 0 && (
-              <ul className="space-y-1.5 list-none pl-0">
+              <ul className="space-y-1 list-none pl-0">
                 {result.tips.map((tip, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs sm:text-sm text-gray-700 dark:text-gray-300">
-                    <span className="text-emerald-500 font-bold">✓</span>
+                  <li key={i} className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
+                    <span className="text-emerald-600 font-semibold">•</span>
                     <span>{tip}</span>
                   </li>
                 ))}

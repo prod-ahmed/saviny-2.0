@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Icon } from "./ui";
+import { Icon, type IconName } from "./ui";
 
 interface OnboardingDemoProps {
   isOpen: boolean;
@@ -7,136 +7,120 @@ interface OnboardingDemoProps {
   onNavigate?: (path: string) => void;
 }
 
-const SLIDES = [
+interface TourPoint {
+  iconName?: IconName;
+  tag?: string;
+  title: string;
+  desc: string;
+}
+
+interface TourSlide {
+  badge: string;
+  title: string;
+  subtitle: string;
+  avatarSrc?: string;
+  points: TourPoint[];
+  actionText: string;
+}
+
+const SLIDES: TourSlide[] = [
   {
     badge: "Bienvenue sur Pennywise",
-    badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-300",
-    title: "Votre Compagnon Financier Intelligent",
-    subtitle: "Maîtrisez vos finances avec une PWA ultra-rapide et l'intelligence artificielle.",
-    icon: "🌱",
-    image: "/assets/pennywise-logo.png",
+    title: "Gestion Financière & Épargne Intelligente",
+    subtitle: "Une application financière moderne, conçue pour vous donner le contrôle total de votre budget.",
+    avatarSrc: "/assets/pennywise-logo.png",
     points: [
       {
-        icon: "💳",
-        title: "Tableau de bord unifié",
-        desc: "Visualisez en un coup d'œil vos soldes, dépenses du mois, budgets et prochains paiements.",
+        iconName: "grid",
+        title: "Vue d'ensemble centralisée",
+        desc: "Suivez vos soldes, vos dépenses mensuelles, vos budgets et vos échéances en un coup d'œil.",
       },
       {
-        icon: "📱",
+        iconName: "wallet",
         title: "PWA Mobile-First & Hors-Ligne",
-        desc: "Installez Pennywise sur votre écran d'accueil. L'application continue de fonctionner même en mode avion.",
+        desc: "Accessible partout, même sans connexion réseau, avec synchronisation automatique au retour d'internet.",
       },
       {
-        icon: "🔒",
-        title: "Confidentialité garantie",
-        desc: "Vos données restent stockées dans votre espace privé MongoDB sécurisé.",
+        iconName: "settings",
+        title: "Confidentialité & Sécurité",
+        desc: "Vos données financières privées sont conservées de manière étanche dans votre base sécurisée.",
       },
     ],
-    actionText: "Découvrir l'IA Pennywise →",
+    actionText: "Découvrir Coach Penny",
   },
   {
-    badge: "✨ IA n°1 : Smart Savings Coach",
-    badgeColor: "bg-amber-100 text-amber-900 border-amber-300",
-    title: "Votre Coach d'Épargne Personnel",
-    subtitle: "Un conseiller financier bienveillant toujours à portée de clic.",
-    icon: "🧙‍♂️",
+    badge: "Coach d'Épargne Personnel",
+    title: "Penny — Smart Savings Coach",
+    subtitle: "Votre conseillère financière interactive pour optimiser vos réserves et sécuriser vos projets.",
+    avatarSrc: "/assets/penny-avatar-thumb.png",
     points: [
       {
-        icon: "⚡",
-        title: "Calcul de votre Capacité d'Épargne",
-        desc: "Le Coach analyse vos revenus et vos charges pour déterminer précisément combien vous pouvez épargner chaque mois.",
+        iconName: "target",
+        title: "Capacité d'épargne en temps réel",
+        desc: "Penny calcule votre flux net réel (revenus - charges) et propose un rythme hebdomadaire adapté.",
       },
       {
-        icon: "🎯",
-        title: "Surveillance de vos Objectifs",
-        desc: "Détection préventive des retards sur vos projets d'épargne avec suggestions de coupes de dépenses indolores.",
+        iconName: "budget",
+        title: "Surveillance de vos objectifs",
+        desc: "Détection préventive des retards sur vos échéances avec conseils de rééquilibrage budgétaire.",
       },
       {
-        icon: "💬",
-        title: "Avatar toujours disponible",
-        desc: "Cliquez sur l'avatar du Coach en bas à droite de l'écran pour obtenir un diagnostic instantané.",
+        iconName: "sparkle",
+        title: "Accessible à tout moment",
+        desc: "Cliquez sur l'avatar Penny en bas à droite pour ouvrir votre diagnostic financier ou poser une question.",
       },
     ],
-    actionText: "Voir le Scanner OCR →",
+    actionText: "Voir la Numérisation de Reçus",
   },
   {
-    badge: "✨ IA n°2 : Vision & OCR Reçus",
-    badgeColor: "bg-indigo-100 text-indigo-900 border-indigo-300",
-    title: "Scanner de Reçus Intelligent",
-    subtitle: "Dites adieu à la saisie manuelle de vos tickets de caisse !",
-    icon: "📷",
+    badge: "Numérisation Assistée",
+    title: "Scanner de Reçus par Vision Optique",
+    subtitle: "Enregistrez vos achats en quelques secondes sans saisie manuelle.",
     points: [
       {
-        icon: "✨",
-        title: "Scan Laser Multimodal",
-        desc: "Prenez une photo de votre ticket : admirez le balayage laser en direct et l'analyse visuelle en temps réel.",
+        iconName: "swap",
+        title: "Extraction optique automatisée",
+        desc: "Photographiez votre ticket de caisse : l'analyse extrait immédiatement le montant exact, la date et les détails.",
       },
       {
-        icon: "🪄",
-        title: "Remplissage Automatique à 100%",
-        desc: "Le montant exact, la date, les articles et même le compte débité sont renseignés automatiquement.",
+        iconName: "saving",
+        title: "Catégorisation intelligente",
+        desc: "Penny associe directement la transaction à la bonne catégorie budgétaire pour un suivi sans friction.",
       },
       {
-        icon: "🏷️",
-        title: "Catégorisation Intelligente",
-        desc: "L'IA associe directement la bonne catégorie (Alimentation, Transport, Shopping...) sans effort.",
+        iconName: "check",
+        title: "Contrôle avant validation",
+        desc: "Les champs préremplis restent modifiables avant confirmation et enregistrement définitif.",
       },
     ],
-    actionText: "Voir le Simulateur What-If →",
+    actionText: "Voir le Simulateur What-If",
   },
   {
-    badge: "✨ IA n°3 : Simulateur 'What-If'",
-    badgeColor: "bg-purple-100 text-purple-900 border-purple-300",
-    title: "Simulez le Futur de vos Finances",
-    subtitle: "Testez l'impact de chaque décision avant de la prendre.",
-    icon: "🔮",
+    badge: "Modélisation Prévisionnelle",
+    title: "Simulateur de Scénarios (What-If)",
+    subtitle: "Anticipez l'impact de chaque décision avant de modifier vos habitudes de dépenses.",
     points: [
       {
-        icon: "📈",
-        title: "Scénarios Préréglés",
-        desc: "Hausse de loyer, augmentation de salaire, résiliation d'abonnements... testez en un clic.",
+        iconName: "budget",
+        title: "Hypothèses financières personnalisées",
+        desc: "Hausse de loyer, revalorisation salariale, résiliation d'abonnements : testez des hypothèses concrètes.",
       },
       {
-        icon: "⏱️",
-        title: "Impact Direct sur vos Objectifs",
-        desc: "Voyez immédiatement si votre projet vacances ou apport immobilier prend 3 mois d'avance ou de retard.",
+        iconName: "target",
+        title: "Projection sur vos dates cibles",
+        desc: "Visualisez en direct si un projet d'épargne est décalé ou accéléré selon vos arbitrages.",
       },
       {
-        icon: "💡",
-        title: "Conseils Actionnables",
-        desc: "Le Coach vous donne la marche à suivre concrète pour amortir tout imprévu financier.",
+        iconName: "more",
+        title: "Recommandations d'accompagnement",
+        desc: "Penny formule des étapes pratiques pour absorber les variations de trésorerie.",
       },
     ],
-    actionText: "Voir les PWA & Fonctionnalités →",
-  },
-  {
-    badge: "🚀 Prêt à démarrer",
-    badgeColor: "bg-emerald-100 text-emerald-900 border-emerald-300",
-    title: "Vous êtes prêt pour Pennywise !",
-    subtitle: "Commencez dès maintenant à reprendre le contrôle total de votre argent.",
-    icon: "💎",
-    points: [
-      {
-        icon: "📲",
-        title: "Installez l'application",
-        desc: "Cliquez sur 'Installer l'application' dans le menu pour l'ajouter à votre écran d'accueil.",
-      },
-      {
-        icon: "💡",
-        title: "Boutons IA partout",
-        desc: "Repérez les badges '✨ IA' dans Transactions, Budgets, Factures et Objectifs pour vous faire assister.",
-      },
-      {
-        icon: "🔄",
-        title: "Revisiter ce guide",
-        desc: "Vous pouvez rouvrir ce guide à tout moment via le bouton '✨ Guide & Démo' dans la barre supérieure.",
-      },
-    ],
-    actionText: "C'est parti ! 🚀",
+    actionText: "Commencer à utiliser Pennywise",
   },
 ];
 
-export function OnboardingDemo({ isOpen, onClose, onNavigate }: OnboardingDemoProps) {
+export function OnboardingDemo({ isOpen, onClose }: OnboardingDemoProps) {
   const [currentStep, setCurrentStep] = useState(0);
 
   useEffect(() => {
@@ -173,134 +157,122 @@ export function OnboardingDemo({ isOpen, onClose, onNavigate }: OnboardingDemoPr
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
       <div
-        className="bg-white dark:bg-[#152322] w-full max-w-xl rounded-3xl shadow-2xl border border-emerald-100 dark:border-emerald-900/40 overflow-hidden flex flex-col max-h-[92vh] animate-scaleUp text-[#102a29] dark:text-emerald-50"
+        className="bg-white dark:bg-[#11201f] w-full max-w-lg rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[90vh] text-[#102a29] dark:text-emerald-50"
         role="dialog"
         aria-modal="true"
         aria-label="Guide de découverte Pennywise"
       >
-        {/* Header with Logo and Close */}
-        <div className="p-5 pb-3 flex items-center justify-between border-b border-gray-100 dark:border-gray-800">
+        {/* Header */}
+        <div className="px-5 py-4 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-3">
             <img
               src="/assets/pennywise-logo.png"
               alt="Pennywise"
-              className="w-10 h-10 rounded-full shadow-md border-2 border-emerald-400 object-cover bg-white"
+              className="w-8 h-8 rounded-full border border-slate-200 object-cover bg-white"
             />
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-base tracking-tight text-emerald-950 dark:text-white">Pennywise</span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
-                  Démo interactive
+                <span className="font-bold text-sm tracking-tight text-slate-900 dark:text-white">Pennywise</span>
+                <span className="text-[10px] font-semibold px-2 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                  Guide d'utilisation
                 </span>
               </div>
-              <p className="text-[11px] text-gray-500 dark:text-gray-400">Étape {currentStep + 1} sur {SLIDES.length}</p>
+              <p className="text-[11px] text-slate-400">Étape {currentStep + 1} sur {SLIDES.length}</p>
             </div>
           </div>
           <button
             onClick={handleSkip}
-            className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition"
-            aria-label="Fermer le guide"
+            className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            aria-label="Fermer"
           >
             ✕
           </button>
         </div>
 
-        {/* Step Progress Bar */}
-        <div className="w-full bg-gray-100 dark:bg-gray-800 h-1.5 flex">
+        {/* Segmented Progress Line */}
+        <div className="w-full bg-slate-100 dark:bg-slate-800 h-1 flex">
           {SLIDES.map((_, i) => (
             <div
               key={i}
               className={`h-full flex-1 transition-all duration-300 ${
-                i <= currentStep ? "bg-emerald-500" : "bg-transparent"
-              } ${i === currentStep ? "opacity-100" : "opacity-60"}`}
+                i <= currentStep ? "bg-emerald-600" : "bg-transparent"
+              }`}
             />
           ))}
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 overflow-y-auto space-y-5">
+        <div className="p-6 overflow-y-auto space-y-4">
           <div className="flex items-start justify-between gap-4">
-            <div>
-              <span className={`inline-block text-[11px] font-bold px-3 py-1 rounded-full border mb-2 ${slide.badgeColor}`}>
+            <div className="space-y-1">
+              <span className="inline-block text-[10px] font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
                 {slide.badge}
               </span>
-              <h3 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white leading-tight">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">
                 {slide.title}
               </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                 {slide.subtitle}
               </p>
             </div>
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-50 dark:from-emerald-900/50 dark:to-teal-900/30 flex items-center justify-center text-3xl shadow-inner shrink-0 border border-emerald-200/60 dark:border-emerald-700/40">
-              {slide.icon}
-            </div>
+            {slide.avatarSrc && (
+              <img
+                src={slide.avatarSrc}
+                alt="Illustration"
+                className="w-14 h-14 rounded-full object-cover border border-slate-200 shrink-0 shadow-sm"
+              />
+            )}
           </div>
 
           {/* Key Feature Points */}
-          <div className="space-y-3 pt-2">
+          <div className="space-y-2.5 pt-1">
             {slide.points.map((pt, idx) => (
               <div
                 key={idx}
-                className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-gray-50/80 dark:bg-emerald-950/20 border border-gray-100 dark:border-emerald-900/30 hover:border-emerald-300 dark:hover:border-emerald-700 transition"
+                className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800"
               >
-                <div className="w-9 h-9 rounded-xl bg-white dark:bg-emerald-900/40 flex items-center justify-center text-lg shrink-0 shadow-sm border border-gray-200/50 dark:border-gray-700/50">
-                  {pt.icon}
+                <div className="w-7 h-7 rounded-lg bg-white dark:bg-slate-800 flex items-center justify-center shrink-0 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200">
+                  {pt.iconName ? <Icon name={pt.iconName} size={15} /> : <span className="text-xs font-bold">•</span>}
                 </div>
                 <div>
-                  <h4 className="text-xs sm:text-sm font-bold text-gray-900 dark:text-emerald-100">
+                  <h4 className="text-xs font-semibold text-slate-900 dark:text-slate-100">
                     {pt.title}
                   </h4>
-                  <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5 leading-relaxed">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
                     {pt.desc}
                   </p>
                 </div>
               </div>
             ))}
           </div>
-
-          {/* Quick preview card on slide 0 */}
-          {currentStep === 0 && (
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-700 to-teal-900 text-white flex items-center gap-4 shadow-lg">
-              <img
-                src="/assets/pennywise-logo.png"
-                alt="Pennywise"
-                className="w-14 h-14 rounded-full border-2 border-white/50 bg-white p-0.5 shrink-0 object-cover shadow"
-              />
-              <div>
-                <p className="text-xs font-semibold text-emerald-200 uppercase tracking-wider">Astuce Pro</p>
-                <p className="text-xs text-white/90 mt-0.5">
-                  Toutes les fonctionnalités IA (Scanner, Coach, Simulateur) sont alimentées par <strong>Google Gemini Flash</strong> pour des réponses instantanées.
-                </p>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Footer Navigation */}
-        <div className="p-5 pt-3 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between gap-3 bg-gray-50/50 dark:bg-emerald-950/10">
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 bg-slate-50/50 dark:bg-slate-900/30">
           <button
             onClick={handleSkip}
-            className="text-xs font-semibold text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 px-3 py-2 rounded-xl transition"
+            className="text-xs font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 px-3 py-1.5 transition"
           >
-            Passer le guide
+            Passer
           </button>
 
           <div className="flex items-center gap-2">
             {currentStep > 0 && (
               <button
                 onClick={handlePrev}
-                className="px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                className="px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
               >
                 Précédent
               </button>
             )}
             <button
               onClick={handleNext}
-              className="px-5 py-2.5 rounded-xl bg-[#102a29] dark:bg-emerald-600 text-white text-xs font-bold shadow-md hover:bg-[#1a3f3e] dark:hover:bg-emerald-500 transition flex items-center gap-1.5"
+              className="px-4 py-2 rounded-lg bg-[#0e2422] hover:bg-[#153430] text-white text-xs font-semibold shadow-sm transition flex items-center gap-1.5 cursor-pointer"
             >
               <span>{slide.actionText}</span>
+              <span>→</span>
             </button>
           </div>
         </div>

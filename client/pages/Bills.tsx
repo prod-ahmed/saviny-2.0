@@ -57,27 +57,22 @@ export default function Bills() {
       </div>
 
       {/* What-If Simulation Callout for Bills */}
-      <div className="my-3 p-4 rounded-3xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-teal-500/10 border border-amber-300/60 dark:border-amber-700/40 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-[#102a29] dark:text-emerald-50">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center text-lg shadow-sm shrink-0">
-            🔮
+      <div className="my-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-slate-900 dark:text-slate-100">
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+              Modélisation
+            </span>
+            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Simulation d'impact budgétaire</span>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black uppercase tracking-wider bg-amber-500 text-white px-2 py-0.5 rounded-full">
-                ✨ SIMULATEUR WHAT-IF
-              </span>
-              <span className="text-xs font-bold text-amber-800 dark:text-amber-300">Anticipez vos charges</span>
-            </div>
-            <p className="text-xs text-gray-700 dark:text-gray-300 mt-0.5">
-              Une augmentation de loyer ou une nouvelle facture ? Testez son impact sur vos objectifs d'épargne.
-            </p>
-          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Une nouvelle dépense récurrente ? Testez son effet sur vos réserves et vos objectifs.
+          </p>
         </div>
         <button
           type="button"
           onClick={() => {
-            const coachBtn = document.querySelector('button[aria-label="Ouvrir Pennywise AI - Smart Savings Coach"], button[aria-label="Ouvrir Saviny AI - Smart Savings Coach"]') as HTMLButtonElement;
+            const coachBtn = document.querySelector('button[aria-label="Ouvrir Coach Penny"], button[aria-label="Ouvrir Pennywise AI - Smart Savings Coach"]') as HTMLButtonElement;
             if (coachBtn) {
               coachBtn.click();
               setTimeout(() => {
@@ -86,10 +81,9 @@ export default function Bills() {
               }, 200);
             }
           }}
-          className="shrink-0 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow transition flex items-center gap-1.5 cursor-pointer"
+          className="shrink-0 px-3.5 py-2 rounded-lg bg-[#0e2422] hover:bg-[#153430] text-white text-xs font-semibold shadow-sm transition active:scale-95 cursor-pointer"
         >
-          <span>Simuler l'impact</span>
-          <span>→</span>
+          Simuler l'impact
         </button>
       </div>
       <StateText loading={bills.loading} error={bills.error} empty={!bills.data} />
