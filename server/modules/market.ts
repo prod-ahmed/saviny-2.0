@@ -101,12 +101,14 @@ export const marketRoutes: Route[] = [
     else filter.status = "available";
     const category = q.get("category");
     const maxPrice = q.get("maxPrice");
-    const search = q.get("q")?.trim();
+    const searches = [...new Set(q.getAll("q").map((term) => term.trim()).filter(Boolean))].slice(0, 5);
     if (category && category !== "All categories") filter.category = category;
     if (maxPrice && Number(maxPrice) > 0) filter.price = { $lte: Number(maxPrice) };
-    if (search) {
-      const pattern = { $regex: escapeRegex(search), $options: "i" };
-      filter.$or = [{ title: pattern }, { description: pattern }];
+    if (searches.length > 0) {
+      filter.$or = searches.flatMap((search) => {
+        const pattern = { $regex: escapeRegex(search), $options: "i" };
+        return [{ title: pattern }, { description: pattern }];
+      });
     }
     const total = await store.count("listings", filter);
     const size = Math.min(100, Math.max(1, Number(q.get("pageSize") ?? 24) || 24));
@@ -205,4 +207,3 @@ export const marketRoutes: Route[] = [
     return Promise.all(visible.map((r) => listingView(store, r, ctx.user.id)));
   }),
 ];
-

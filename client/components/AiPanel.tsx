@@ -28,18 +28,18 @@ export function AiPanel<T>({
 
   const defaultDesc =
     title.toLowerCase().includes("budget")
-      ? "Analyse comparative de vos plafonds et de vos dépenses réelles pour suggérer des ajustements."
-      : title.toLowerCase().includes("subscription") || title.toLowerCase().includes("abonnement")
-      ? "Identification des débits périodiques pour repérer d'éventuels abonnements ou doublons."
-      : title.toLowerCase().includes("goal") || title.toLowerCase().includes("objectif")
-      ? "Projection actuarielle des mensualités nécessaires pour atteindre cet objectif à date."
-      : title.toLowerCase().includes("account") || title.toLowerCase().includes("compte")
-      ? "Analyse de la répartition de vos liquidités et de votre réserve de précaution."
-      : title.toLowerCase().includes("profile") || title.toLowerCase().includes("profil")
-      ? "Bilan de santé financière et pistes d'amélioration personnalisées."
+      ? "Compare your budget limits with your spending and suggest helpful changes."
+      : title.toLowerCase().includes("subscription")
+      ? "Find recurring payments that may be subscriptions or duplicates."
+      : title.toLowerCase().includes("goal")
+      ? "Estimate how much to save each month to reach your goal on time."
+      : title.toLowerCase().includes("account")
+      ? "Review how your money is spread across accounts and savings."
+      : title.toLowerCase().includes("profile")
+      ? "Get a simple overview of your finances and practical next steps."
       : title.toLowerCase().includes("digest") || title.toLowerCase().includes("notif")
-      ? "Synthèse claire de vos notifications et priorités financières récentes."
-      : "Analyse automatisée de vos données financières.";
+      ? "Get a clear summary of recent alerts and financial priorities."
+      : "Review your financial information.";
 
   return (
     <section
@@ -70,7 +70,7 @@ export function AiPanel<T>({
           {busy ? (
             <>
               <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              <span>Analyse en cours...</span>
+              <span>Analyzing…</span>
             </>
           ) : (
             <span>{action}</span>
@@ -101,8 +101,8 @@ export function AiPanel<T>({
 
 export function AiNotice() {
   return (
-    <p className="text-slate-400 text-[10px] leading-normal">
-      Notice de confidentialité : Les analyses sont générées de manière sécurisée par l'IA à partir de vos données privées.
+    <p className="ai-notice text-slate-400 text-[10px] leading-normal">
+      Privacy notice: AI analyses are generated securely from your private data.
     </p>
   );
 }

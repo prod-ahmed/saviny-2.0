@@ -7,6 +7,7 @@ web/dist/
 !.env.example
 *.tsbuildinfo
 .DS_Store
+.certs/
 
 # Next.js build output and generated files
 .next/

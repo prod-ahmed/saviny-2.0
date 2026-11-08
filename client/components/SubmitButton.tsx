@@ -2,7 +2,7 @@
 
 import { useFormStatus } from "react-dom";
 
-export function SubmitButton({ label = "Ajouter la transaction" }: { label?: string }) {
+export function SubmitButton({ label = "Add transaction" }: { label?: string }) {
   const { pending } = useFormStatus();
 
   return (
@@ -22,4 +22,3 @@ export function SubmitButton({ label = "Ajouter la transaction" }: { label?: str
     </button>
   );
 }
-

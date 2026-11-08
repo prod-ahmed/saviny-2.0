@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router";
-import { FormError } from "../components/ui";
+import { FormError, Icon } from "../components/ui";
 import { AiNotice, useAiCall } from "../components/AiPanel";
 import { api, setToken } from "../lib/api";
 import type { User } from "../lib/types";
@@ -14,12 +14,10 @@ function AuthLayout({ eyebrow, title, description, children }: { eyebrow: string
   return (
     <div className="auth-page">
       <section className="auth-brand">
-        <div className="mb-6 p-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 inline-block shadow-2xl">
-          <img src="/assets/pennywise-logo.png" alt="Pennywise" className="w-24 h-24 rounded-full bg-white object-cover shadow-lg border-2 border-emerald-400" />
-        </div>
+        <img src="/assets/pennywise-logo.png" alt="Pennywise" className="auth-brand-logo" />
         <span className="eyebrow">PENNYWISE · SMART FINANCIAL COMPANION</span>
-        <h1>Prenez le contrôle intelligent de votre argent.</h1>
-        <p>Budget, épargne, scanner de reçus et coach financier propulsé par l'IA Google Gemini.</p>
+        <h1>Take control of your money with confidence.</h1>
+        <p>Budgeting, savings, receipt scanning, and a financial coach powered by Google Gemini AI.</p>
       </section>
       <section className="auth-card">
         <div>
@@ -82,6 +80,7 @@ function SignInHelp() {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const ai = useAiCall();
+  const maxQuestionLength = 500;
 
   const ask = async (e: FormEvent) => {
     e.preventDefault();
@@ -90,15 +89,46 @@ function SignInHelp() {
   };
 
   return (
-    <details className="ai-panel">
-      <summary><span className="ai-badge">AI</span> Need help signing in?</summary>
-      <form className="flow-form" onSubmit={ask}>
-        <label>Describe the problem<textarea required maxLength={500} rows={2} value={question} onChange={(e) => setQuestion(e.target.value)} /></label>
-        <button type="submit" className="secondary" disabled={ai.busy}>{ai.busy ? "Thinking..." : "Ask for help"}</button>
+    <details className="ai-panel signin-help">
+      <summary>
+        <span className="signin-help-icon"><Icon name="sparkle" size={17} /></span>
+        <span className="signin-help-heading">
+          <strong>Need help signing in?</strong>
+          <small>Get a quick answer from Penny</small>
+        </span>
+        <span className="ai-badge">AI</span>
+        <span className="signin-help-chevron"><Icon name="chevron" size={16} /></span>
+      </summary>
+      <form className="signin-help-form" onSubmit={ask}>
+        <label htmlFor="signin-help-question">What can’t you access?</label>
+        <textarea
+          id="signin-help-question"
+          required
+          maxLength={maxQuestionLength}
+          rows={3}
+          placeholder="For example: I can’t find the password reset email."
+          value={question}
+          onChange={(e) => { setQuestion(e.target.value); setAnswer(""); }}
+        />
+        <div className="signin-help-actions">
+          <span>{question.length}/{maxQuestionLength}</span>
+          <button type="submit" className="primary" disabled={ai.busy || !question.trim()}>
+            {ai.busy ? <><span className="signin-help-spinner" aria-hidden="true" /> Thinking…</> : <><Icon name="sparkle" size={14} /> Ask Penny</>}
+          </button>
+        </div>
       </form>
       {ai.error && <p className="auth-error" role="alert">{ai.error}</p>}
-      {answer && <div className="ai-body"><p>{answer}</p></div>}
-      <AiNotice />
+      {answer && (
+        <div className="signin-help-answer" role="status" aria-live="polite">
+          <span className="signin-help-answer-label"><Icon name="sparkle" size={14} /> Penny’s suggestion</span>
+          <p>{answer.split(/(\*\*[^*]+\*\*)/g).map((part, index) =>
+            part.startsWith("**") && part.endsWith("**")
+              ? <strong key={index}>{part.slice(2, -2)}</strong>
+              : <span key={index}>{part}</span>
+          )}</p>
+        </div>
+      )}
+      <div className="signin-help-privacy"><AiNotice /></div>
     </details>
   );
 }

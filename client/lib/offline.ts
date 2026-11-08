@@ -124,7 +124,7 @@ export async function flushOutbox(token: string | null): Promise<{ sent: number;
         },
         body: item.json !== undefined ? JSON.stringify(item.json) : undefined,
       });
-    } catch {
+    } catch { 
       break;
     }
     if (res.status === 401 || res.status >= 500) break;

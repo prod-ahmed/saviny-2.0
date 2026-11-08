@@ -1,4 +1,5 @@
 import type { Server as HttpServer } from "node:http";
+import type { Server as HttpsServer } from "node:https";
 import { Server, type Socket } from "socket.io";
 import { allowedOrigins, context } from "../context";
 import { userFromToken } from "../http/session";
@@ -28,7 +29,7 @@ function withinSendRate(sent: number[]): boolean {
  * Live direct messages for the marketplace. Each socket authenticates with its session token and
  * joins a private room, so events reach only the two people in a conversation.
  */
-export function attachSocket(httpServer: HttpServer): Server {
+export function attachSocket(httpServer: HttpServer | HttpsServer): Server {
   const io = new Server(httpServer, {
     path: "/api/socket.io",
     cors: { origin: allowedOrigins(), credentials: true },

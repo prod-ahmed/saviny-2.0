@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { context } from "../context";
 import { badRequest } from "../common/errors";
-import { defined, isoDate, owned, periodRange } from "../common/domain";
+import { DEFAULT_CATEGORIES, defined, isoDate, owned, periodRange } from "../common/domain";
 import { removeAccount, removeBudget, removeGoal } from "../common/cascade";
 import { newId, nowIso, round2 } from "../common/security";
 import { isDuplicateKey, escapeRegex, type Filter, type Store } from "../database/store";
@@ -286,9 +286,22 @@ export const financeRoutes: Route[] = [
   }, { status: 204 }),
 
   // Categories
-  route("GET", "categories", async (ctx) =>
-    (await (await db()).many("categories", { user_id: ctx.user.id }, { sort: { name: 1 } }))
-      .map((c) => ({ id: c.id, name: c.name, archived: !!c.archived }))),
+  route("GET", "categories", async (ctx) => {
+    const store = await db();
+    let categories = await store.many("categories", { user_id: ctx.user.id });
+    if (categories.length === 0) {
+      try {
+        await store.insert("categories", DEFAULT_CATEGORIES.map((name) => ({
+          id: newId(), user_id: ctx.user.id, name, archived: false,
+        })));
+      } catch (err) {
+        if (!isDuplicateKey(err)) throw err;
+      }
+      categories = await store.many("categories", { user_id: ctx.user.id });
+    }
+    return categories.sort((a, b) => a.name.localeCompare(b.name))
+      .map((c) => ({ id: c.id, name: c.name, archived: !!c.archived }));
+  }),
   route("POST", "categories", async (ctx) => {
     const dto = await ctx.body(categorySchema);
     const id = newId();

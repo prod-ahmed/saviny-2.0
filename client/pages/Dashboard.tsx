@@ -38,6 +38,7 @@ export default function Dashboard() {
   };
 
   const d = dash.data;
+  const periodLabel = PERIODS.find(([value]) => value === period)?.[1] ?? "This month";
   const maxBar = Math.max(1, ...(d?.weeklyFlow.flatMap((w) => [w.income, w.expenses]) ?? [1]));
   const expenseTotal = d?.expenses ?? 0;
   const budgets = d?.budgets ?? [];
@@ -53,7 +54,7 @@ export default function Dashboard() {
         <div>
           <span className="eyebrow">FINANCIAL OVERVIEW</span>
           <h2>Good {greeting()}, {user?.firstName ?? "there"}!</h2>
-          <p>Here is your financial overview. {d && d.income >= d.expenses ? "You’re making steady progress this month." : "Expenses are above income this period."}</p>
+          <p>Here is your financial overview for {periodLabel.toLowerCase()}. {d && d.income >= d.expenses ? "You’re making steady progress." : "Expenses are above income for this period."}</p>
         </div>
         <div className="welcome-actions">
           <button className="primary" onClick={() => setModal("transaction")}><Icon name="plus" size={18} /> Add transaction</button>
@@ -72,113 +73,11 @@ export default function Dashboard() {
       <StateText loading={dash.loading} error={dash.error} empty={!d} />
 
       {d && <>
-        {/* Pennywise Coach Financial Summary Card */}
-        <div className="bg-[#0e2422] text-white p-5 rounded-2xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 mb-3 shadow-sm">
-          <div className="flex items-center gap-4">
-            <img
-              src="/assets/penny-avatar-thumb.png"
-              alt="Coach Penny"
-              className="w-12 h-12 rounded-xl object-cover border border-emerald-500/40 shrink-0"
-            />
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800/60">
-                  Coach Penny
-                </span>
-                <span className="text-xs text-slate-300">Synthèse prévisionnelle</span>
-              </div>
-              <h3 className="text-sm sm:text-base font-semibold text-white mt-0.5">Bilan &amp; Capacité d'Épargne</h3>
-              <p className="text-xs text-slate-300 max-w-xl leading-relaxed">
-                Capacité mensuelle estimée à <strong className="text-emerald-400 font-semibold">{formatMoney(Math.max(0, d.income - d.expenses), currency)}</strong>. {d.activeGoals} objectif(s) sous surveillance pour anticiper tout décalage.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              const coachBtn = document.querySelector('button[aria-label="Ouvrir Coach Penny"], button[aria-label="Ouvrir Pennywise AI - Smart Savings Coach"]') as HTMLButtonElement;
-              if (coachBtn) coachBtn.click();
-              else navigate("/assistant");
-            }}
-            className="shrink-0 px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-medium text-xs rounded-lg transition active:scale-95 cursor-pointer flex items-center gap-1.5"
-          >
-            <span>Consulter le plan</span>
-            <span>→</span>
-          </button>
-        </div>
-
-        {/* Professional Financial Tools Grid */}
-        <section className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <button
-            type="button"
-            onClick={() => setModal("transaction")}
-            className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-left hover:border-emerald-600/60 hover:shadow-sm transition group cursor-pointer"
-          >
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Scanner</span>
-              <span className="text-[10px] text-slate-400">OCR</span>
-            </div>
-            <strong className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white block">Numériser un reçu</strong>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">Extraction et saisie automatique</p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              const coachBtn = document.querySelector('button[aria-label="Ouvrir Coach Penny"], button[aria-label="Ouvrir Pennywise AI - Smart Savings Coach"]') as HTMLButtonElement;
-              if (coachBtn) coachBtn.click();
-            }}
-            className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-left hover:border-emerald-600/60 hover:shadow-sm transition group cursor-pointer"
-          >
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Coach</span>
-              <span className="text-[10px] text-slate-400">Épargne</span>
-            </div>
-            <strong className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white block">Plan d'action Penny</strong>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">Objectif hebdo &amp; diagnostic</p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              const coachBtn = document.querySelector('button[aria-label="Ouvrir Coach Penny"], button[aria-label="Ouvrir Pennywise AI - Smart Savings Coach"]') as HTMLButtonElement;
-              if (coachBtn) {
-                coachBtn.click();
-                setTimeout(() => {
-                  const whatIfTab = document.querySelectorAll('button[role="tab"]')[1] as HTMLButtonElement;
-                  if (whatIfTab) whatIfTab.click();
-                }, 200);
-              }
-            }}
-            className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-left hover:border-emerald-600/60 hover:shadow-sm transition group cursor-pointer"
-          >
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Simulation</span>
-              <span className="text-[10px] text-slate-400">What-If</span>
-            </div>
-            <strong className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white block">Scénarios prévisionnels</strong>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">Impact loyer, salaire &amp; achats</p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => navigate("/transactions")}
-            className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-left hover:border-emerald-600/60 hover:shadow-sm transition group cursor-pointer"
-          >
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Détection</span>
-              <span className="text-[10px] text-slate-400">Charges</span>
-            </div>
-            <strong className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white block">Abonnements récurrents</strong>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">Audit des prélèvements réguliers</p>
-          </button>
-        </section>
-
         <section className="summary-grid">
           {[
             { label: "Total balance", value: d.balance, note: `Across ${d.activeAccounts} active accounts`, icon: "wallet" as const, tone: "dark", path: "/accounts" },
-            { label: "Monthly income", value: d.income, note: `${d.incomeCount} income transactions`, icon: "income" as const, tone: "blue", path: "/transactions?type=income" },
-            { label: "Monthly expenses", value: d.expenses, note: `${d.expenseCount} expense transactions`, icon: "expense" as const, tone: "red", path: "/transactions?type=expense" },
+            { label: `Income · ${periodLabel.toLowerCase()}`, value: d.income, note: `${d.incomeCount} income transactions`, icon: "income" as const, tone: "blue", path: "/transactions?type=income" },
+            { label: `Expenses · ${periodLabel.toLowerCase()}`, value: d.expenses, note: `${d.expenseCount} expense transactions`, icon: "expense" as const, tone: "red", path: "/transactions?type=expense" },
             { label: "Total saved", value: d.saved, note: `Across ${d.activeGoals} active goals`, icon: "saving" as const, tone: "orange", path: "/goals" },
           ].map((card) => (
             <button className={`summary-card ${card.tone} clickable-card`} key={card.label} onClick={() => navigate(card.path)}>
@@ -365,5 +264,4 @@ function greeting(): string {
   const h = new Date().getHours();
   return h < 12 ? "morning" : h < 18 ? "afternoon" : "evening";
 }
-
 

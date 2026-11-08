@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { context } from "../server/context";
 import { api, dropTestDatabase, freshDatabase, register } from "./helpers";
 
 const PASSWORD = "correct-horse-battery";
@@ -20,6 +21,18 @@ describe("Saviny API", () => {
     expect(accounts.body).toEqual([]);
     const categories = await api("GET", "/api/categories", { token });
     expect(categories.body.map((c: { name: string }) => c.name)).toContain("Food");
+  });
+
+  it("restores default categories for an existing user whose categories are missing", async () => {
+    const { body: { token } } = await register("missing-categories@example.com");
+    const me = await api("GET", "/api/auth/me", { token });
+    const { store } = await context();
+    await store.remove("categories", { user_id: me.body.id });
+
+    const categories = await api("GET", "/api/categories", { token });
+    expect(categories.status).toBe(200);
+    expect(categories.body.map((c: { name: string }) => c.name)).toContain("Food");
+    expect(categories.body).toHaveLength(8);
   });
 
   it("registers, logs in and revokes the session on logout", async () => {
@@ -73,6 +86,28 @@ describe("Saviny API", () => {
     expect(res.body.balance).toBe(1379.5);
   });
 
+  it("includes saved expenses in the selected dashboard period only", async () => {
+    const { body: { token } } = await register("dashboard-expenses@example.com");
+    const account = await api("POST", "/api/accounts", { token, body: { name: "Main", type: "checking", initialBalance: 0 } });
+    const food = await category(token, "Food");
+    const currentDate = today();
+    const previousMonthDate = new Date(new Date(`${currentDate}T00:00:00`).getFullYear(), new Date(`${currentDate}T00:00:00`).getMonth() - 1, 15)
+      .toISOString().slice(0, 10);
+
+    await api("POST", "/api/transactions", {
+      token, body: { type: "expense", amount: 25.5, date: currentDate, accountId: account.body.id, categoryId: food.id },
+    });
+    await api("POST", "/api/transactions", {
+      token, body: { type: "expense", amount: 40, date: previousMonthDate, accountId: account.body.id, categoryId: food.id },
+    });
+
+    const thisMonth = await api("GET", "/api/dashboard?period=this_month", { token });
+    const lastMonth = await api("GET", "/api/dashboard?period=last_month", { token });
+
+    expect(thisMonth.body).toMatchObject({ expenses: 25.5, expenseCount: 1 });
+    expect(lastMonth.body).toMatchObject({ expenses: 40, expenseCount: 1 });
+  });
+
   it("calculates budget spending and flags an overrun", async () => {
     const { body: { token } } = await register("budget@example.com");
     const account = await api("POST", "/api/accounts", { token, body: { name: "Main", type: "checking", initialBalance: 500 } });
@@ -107,6 +142,18 @@ describe("Saviny API", () => {
     const updated = await api("PATCH", `/api/listings/${listing.body.id}`, { token: seller.token, body: { price: 110 } });
     expect(updated.status).toBe(200);
     expect(updated.body.price).toBe(110);
+  });
+
+  it("searches marketplace listings with any of several image-derived terms", async () => {
+    const { body: { token } } = await register("photo-search@example.com");
+    await api("POST", "/api/listings", { token, body: { title: "Blue mountain bicycle", description: "Ready to ride", price: 100, category: "Sports", condition: "Good" } });
+    await api("POST", "/api/listings", { token, body: { title: "Leather hiking boots", description: "Blue and comfortable", price: 45, category: "Sports", condition: "Good" } });
+    await api("POST", "/api/listings", { token, body: { title: "Desk lamp", description: "Blue shade", price: 20, category: "Home", condition: "Good" } });
+
+    const res = await api("GET", "/api/listings?q=bicycle&q=boots&category=Sports&pageSize=48", { token });
+
+    expect(res.status).toBe(200);
+    expect(res.body.items.map((item: { title: string }) => item.title).sort()).toEqual(["Blue mountain bicycle", "Leather hiking boots"]);
   });
 
   it("keeps one reaction per user on a post", async () => {

@@ -1,8 +1,9 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, apiUpload, readAsDataUrl } from "../lib/api";
 import { todayIso } from "../lib/format";
 import type { Account, Bill, Budget, Category, Goal, Listing, Transaction } from "../lib/types";
 import { AiNotice, useAiCall } from "./AiPanel";
+import { CameraCapture } from "./CameraCapture";
 import { FormError } from "./ui";
 
 /** Runs a submit action, tracks busy state and surfaces the server's message. */
@@ -54,12 +55,55 @@ function Actions({ busy, onCancel, label, danger }: { busy: boolean; onCancel: (
 export function TransactionForm({ accounts, categories, initial, onSaved, onCancel }: FormProps<Transaction> & { accounts: Account[]; categories: Category[] }) {
   const formRef = useRef<HTMLFormElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const previewUrlsRef = useRef(new Set<string>());
   const ai = useAiCall();
-  const [scannedInfo, setScannedInfo] = useState("");
-  const [ticketPreview, setTicketPreview] = useState<string | null>(null);
+  const [scannedReceipts, setScannedReceipts] = useState<Array<{
+    id: string;
+    fileName: string;
+    preview: string;
+    amount: number;
+    date: string;
+    description: string;
+    categoryId: string | null;
+    saved: boolean;
+  }>>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [scanPhase, setScanPhase] = useState("");
+  const [activeScanPreview, setActiveScanPreview] = useState<string | null>(null);
+  const [scanError, setScanError] = useState("");
+  const [saveReceiptsBusy, setSaveReceiptsBusy] = useState(false);
+  const [saveReceiptsError, setSaveReceiptsError] = useState("");
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [pendingFill, setPendingFill] = useState<{ amount: number; date: string; description: string; categoryId: string | null } | null>(null);
+
+  /** Fill form fields after React finishes rendering (so the DOM is stable). */
+  useEffect(() => {
+    if (!pendingFill) return;
+    const form = formRef.current;
+    if (!form) return;
+    // Amount — the total from the receipt
+    setField(form, "amount", pendingFill.amount);
+    // Date — real date from the ticket, or today if missing
+    setField(form, "date", pendingFill.date || todayIso());
+    // Description
+    setField(form, "description", pendingFill.description);
+    // Category
+    if (pendingFill.categoryId) {
+      setField(form, "categoryId", pendingFill.categoryId);
+    }
+    // Default account to checking or first available
+    const currentAccount = fieldText(form, "accountId");
+    if (!currentAccount) {
+      const defaultAccount = accounts.find((a) => a.type === "checking") ?? accounts[0];
+      if (defaultAccount) setField(form, "accountId", defaultAccount.id);
+    }
+    // Set type to expense for receipts
+    const expenseRadio = form.querySelector<HTMLInputElement>('input[name="type"][value="expense"]');
+    if (expenseRadio) expenseRadio.checked = true;
+    setPendingFill(null);
+  }, [pendingFill, accounts]);
+
   const { busy, error, submit } = useSubmit(async (form) => {
     const body = {
       type: text(form, "type"),
@@ -74,6 +118,10 @@ export function TransactionForm({ accounts, categories, initial, onSaved, onCanc
     onSaved();
   });
 
+  useEffect(() => () => {
+    for (const preview of previewUrlsRef.current) URL.revokeObjectURL(preview);
+  }, []);
+
   const suggestCategory = async () => {
     const description = fieldText(formRef.current, "description");
     if (description.length < 2) return ai.setError("Write a short description first, then ask for a category.");
@@ -84,136 +132,172 @@ export function TransactionForm({ accounts, categories, initial, onSaved, onCanc
     else if (answer) ai.setError("No category matched. Choose one yourself.");
   };
 
-  /** Reads a receipt photo and fills the form from it. Nothing is saved until the user presses Save. */
-  const scanReceipt = async (file: File | undefined) => {
-    if (!file) return;
-    const preview = URL.createObjectURL(file);
-    setTicketPreview(preview);
+  /** Scans selected receipts one by one and keeps each verified total ready to save as an expense. */
+  const scanReceipts = async (files: File[]) => {
+    if (files.length === 0) return;
+    const queued = files.slice(0, 10);
+    setScanError(files.length > queued.length ? "Only the first 10 receipts were selected for scanning." : "");
+    setSaveReceiptsError("");
     setIsScanning(true);
-    setScanProgress(15);
-    setScanPhase("📷 Chargement du ticket et optimisation image...");
-    setScannedInfo("");
+    let failed = 0;
+    for (const [index, file] of queued.entries()) {
+      const preview = URL.createObjectURL(file);
+      previewUrlsRef.current.add(preview);
+      setActiveScanPreview(preview);
+      setScanProgress(5);
+      setScanPhase(`Scanning receipt ${index + 1} of ${queued.length}…`);
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 4 * 1024 * 1024) {
+        failed += 1;
+        setScanError((current) => `${current ? `${current} ` : ""}${file.name}: choose a JPEG, PNG, or WebP image up to 4 MB.`);
+        URL.revokeObjectURL(preview);
+        previewUrlsRef.current.delete(preview);
+        continue;
+      }
 
-    // Progression timer simulating real-time OCR phases
-    const timer = setInterval(() => {
-      setScanProgress((prev) => {
-        if (prev < 42) {
-          setScanPhase("🔍 Analyse OCR & reconnaissance optique...");
-          return prev + 12;
-        } else if (prev < 75) {
-          setScanPhase("💰 Extraction du montant total, date & marchand...");
-          return prev + 10;
-        } else if (prev < 96) {
-          setScanPhase("🏷️ Catégorisation intelligente Gemini...");
-          return prev + 5;
-        }
-        return prev;
-      });
-    }, 300);
-
-    try {
-      const receipt = await ai.call(() =>
-        apiUpload<{ type: string; amount: number; date: string; description: string; categoryId: string | null }>(
+      const timer = window.setInterval(() => {
+        setScanProgress((progress) => Math.min(92, progress + Math.max(2, Math.round((92 - progress) * 0.12))));
+      }, 350);
+      try {
+        const receipt = await apiUpload<{ type: string; amount: number; date: string; description: string; categoryId: string | null }>(
           "/ai/finance/receipt",
           file
-        )
+        );
+        if (!Number.isFinite(receipt.amount) || receipt.amount <= 0) {
+          throw new Error("Could not read a valid total. Retake the photo or choose another image.");
+        }
+        setScannedReceipts((current) => [...current, {
+          id: `${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`,
+          fileName: file.name,
+          preview,
+          amount: receipt.amount,
+          date: receipt.date,
+          description: receipt.description,
+          categoryId: receipt.categoryId,
+          saved: false,
+        }]);
+        // Queue field-fill for after React re-renders the DOM
+        setPendingFill({
+          amount: receipt.amount,
+          date: receipt.date || todayIso(),
+          description: receipt.description,
+          categoryId: receipt.categoryId,
+        });
+        setScanProgress(100);
+        setScanPhase(`Receipt ${index + 1} scanned`);
+      } catch (err) {
+        failed += 1;
+        URL.revokeObjectURL(preview);
+        previewUrlsRef.current.delete(preview);
+        setScanError((current) => `${current ? `${current} ` : ""}${file.name}: ${err instanceof Error ? err.message : "Could not scan this receipt."}`);
+      } finally {
+        window.clearInterval(timer);
+      }
+    }
+    setActiveScanPreview(null);
+    setIsScanning(false);
+    setScanProgress(0);
+    setScanPhase(failed ? `${queued.length - failed} of ${queued.length} receipts scanned.` : `${queued.length} receipt${queued.length === 1 ? "" : "s"} scanned.`);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const saveScannedReceipts = async () => {
+    const unsaved = scannedReceipts.filter((receipt) => !receipt.saved);
+    if (unsaved.length === 0) return;
+    const accountId = fieldText(formRef.current, "accountId")
+      || accounts.find((account) => account.type === "checking")?.id
+      || accounts[0]?.id;
+    if (!accountId) {
+      setSaveReceiptsError("Add an account before saving scanned expenses.");
+      return;
+    }
+    setSaveReceiptsBusy(true);
+    setSaveReceiptsError("");
+    let savedCount = 0;
+    try {
+      for (const receipt of unsaved) {
+        const categoryId = receipt.categoryId
+          || categories.find((category) => category.name.toLowerCase() === "food")?.id
+          || categories[0]?.id;
+        if (!categoryId) throw new Error("Add an expense category before saving scanned expenses.");
+        await api("/transactions", {
+          method: "POST",
+          requireOnline: true,
+          json: {
+            type: "expense",
+            amount: receipt.amount,
+            date: receipt.date,
+            description: receipt.description || receipt.fileName,
+            accountId,
+            categoryId,
+          },
+        });
+        setScannedReceipts((current) => current.map((item) => item.id === receipt.id ? { ...item, saved: true } : item));
+        savedCount += 1;
+      }
+      onSaved();
+    } catch (err) {
+      const remaining = unsaved.length - savedCount;
+      setSaveReceiptsError(
+        savedCount > 0
+          ? `${savedCount} receipt${savedCount === 1 ? "" : "s"} saved. ${remaining} could not be saved: ${err instanceof Error ? err.message : "Please try again."}`
+          : err instanceof Error ? err.message : "Could not save scanned receipts. Please try again."
       );
-
-      clearInterval(timer);
-
-      if (!receipt) {
-        setIsScanning(false);
-        return;
-      }
-
-      setScanProgress(100);
-      setScanPhase("✓ Analyse terminée avec succès !");
-
-      // 1. Radio: set to expense
-      const expense = formRef.current?.querySelector<HTMLInputElement>('input[name="type"][value="expense"]');
-      if (expense) expense.checked = true;
-
-      // 2. Set Amount, Date and Description
-      setField(formRef.current, "amount", receipt.amount);
-      setField(formRef.current, "date", receipt.date);
-      setField(formRef.current, "description", receipt.description);
-
-      // 3. Category: auto-select recognized category or fallback to first available
-      const targetCatId = receipt.categoryId || categories[0]?.id;
-      if (targetCatId) setField(formRef.current, "categoryId", targetCatId);
-
-      // 4. Account: auto-select checking account or first account if none is picked yet
-      const currentAccount = formRef.current?.querySelector<HTMLSelectElement>('select[name="accountId"]')?.value;
-      if (!currentAccount && accounts.length > 0) {
-        const preferred = accounts.find((a) => a.type === "checking") || accounts[0];
-        setField(formRef.current, "accountId", preferred.id);
-      }
-
-      const catName = categories.find((c) => c.id === targetCatId)?.name || "Catégorie";
-      setScannedInfo(`✓ Tous les champs sont remplis ! $${Number(receipt.amount).toFixed(2)} (${receipt.description || "Articles"}) dans "${catName}".`);
-    } catch {
-      clearInterval(timer);
     } finally {
-      clearInterval(timer);
-      setTimeout(() => setIsScanning(false), 500);
-      if (fileRef.current) fileRef.current.value = "";
+      setSaveReceiptsBusy(false);
     }
   };
 
   return (
     <form className="flow-form" onSubmit={submit} ref={formRef}>
-      {/* Visual Ticket Scanner Preview */}
-      {ticketPreview && (
-        <div className="relative mb-4 bg-gray-950 text-white rounded-2xl overflow-hidden p-3.5 border border-emerald-900/50 shadow-md">
-          <div className="flex items-center justify-between mb-2.5 text-xs">
-            <span className="font-semibold text-emerald-400">
-              Reçu importé
-            </span>
-            <div className="flex items-center gap-2">
-              <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
-                isScanning ? "bg-amber-500/20 text-amber-300 border border-amber-500/30" : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-              }`}>
-                {isScanning ? `Analyse (${scanProgress}%)` : "Extraction terminée (100%)"}
-              </span>
-              <button
-                type="button"
-                onClick={() => { setTicketPreview(null); setScannedInfo(""); }}
-                className="text-gray-400 hover:text-white text-xs px-2 py-0.5 rounded bg-gray-800 transition"
-              >
-                Fermer
-              </button>
-            </div>
+      {!cameraOpen && activeScanPreview && (
+        <section className="receipt-scan-card relative mb-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 p-3 text-white shadow-md" aria-live="polite">
+          <div className="receipt-scan-stage">
+            <img src={activeScanPreview} alt="Receipt being scanned" />
+            <div className="scanner-laser" aria-hidden="true" />
           </div>
-
-          <div className="relative flex justify-center bg-black/70 rounded-xl overflow-hidden max-h-52 p-2">
-            <img
-              src={ticketPreview}
-              alt="Receipt preview"
-              className="max-h-48 w-auto object-contain rounded-lg filter brightness-95"
-            />
-            {/* Real-time Laser Line Sweep */}
-            {isScanning && <div className="scanner-laser" />}
+          <div className="mt-3 flex justify-between gap-2 text-xs">
+            <span>{scanPhase}</span><span className="font-semibold text-emerald-300">{scanProgress}%</span>
           </div>
-
-          {/* Progress bar with percentage */}
-          <div className="mt-2.5">
-            <div className="flex justify-between items-center text-xs mb-1">
-              <span className="text-gray-300 text-[11px] truncate flex items-center gap-1.5">
-                {isScanning && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />}
-                {scanPhase || "Ticket prêt."}
-              </span>
-              <span className="font-mono font-bold text-emerald-400 shrink-0">{scanProgress}%</span>
-            </div>
-            <div className="w-full bg-gray-800 h-2 rounded-full overflow-hidden border border-gray-700">
-              <div
-                className="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-300 transition-all duration-300 rounded-full"
-                style={{ width: `${scanProgress}%` }}
-              />
-            </div>
+          <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-700">
+            <div className="h-full bg-emerald-400 transition-all" style={{ width: `${scanProgress}%` }} />
           </div>
-        </div>
+        </section>
       )}
-
+      {scannedReceipts.length > 0 && (
+        <section className="receipt-save-prompt" aria-label="Scanned receipts">
+          <div className="w-full">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <strong>Scanned receipts ({scannedReceipts.length})</strong>
+              <span className="text-xs font-semibold text-slate-700">
+                Total: ${scannedReceipts.reduce((sum, receipt) => sum + receipt.amount, 0).toFixed(2)}
+              </span>
+            </div>
+            <div className="grid gap-2">
+              {scannedReceipts.map((receipt) => (
+                <div key={receipt.id} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-2.5">
+                  <img src={receipt.preview} alt="" className="h-14 w-12 shrink-0 rounded-lg bg-slate-100 object-cover" />
+                  <div className="min-w-0 flex-1">
+                    <strong className="block truncate text-xs text-slate-900">{receipt.description || receipt.fileName}</strong>
+                    <span className="text-xs text-slate-600">{receipt.date} · ${receipt.amount.toFixed(2)}</span>
+                  </div>
+                  {receipt.saved
+                    ? <span className="shrink-0 text-xs font-semibold text-emerald-700">Saved</span>
+                    : <button type="button" className="shrink-0 ml-auto px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition" aria-label={`Remove ${receipt.fileName}`} onClick={() => {
+                      URL.revokeObjectURL(receipt.preview);
+                      previewUrlsRef.current.delete(receipt.preview);
+                      setScannedReceipts((current) => current.filter((item) => item.id !== receipt.id));
+                    }}>Remove</button>}
+                </div>
+              ))}
+            </div>
+            <button type="button" className="primary mt-3 w-full" disabled={saveReceiptsBusy || isScanning || !scannedReceipts.some((receipt) => !receipt.saved)} onClick={saveScannedReceipts}>
+              {saveReceiptsBusy ? "Saving expenses…" : `Save ${scannedReceipts.filter((receipt) => !receipt.saved).length} expense${scannedReceipts.filter((receipt) => !receipt.saved).length === 1 ? "" : "s"}`}
+            </button>
+          </div>
+        </section>
+      )}
+      {scanError && <p className="my-2 rounded-lg border border-rose-200 bg-rose-50 p-2.5 text-xs text-rose-800" role="alert">{scanError}</p>}
+      {saveReceiptsError && <p className="my-2 rounded-lg border border-rose-200 bg-rose-50 p-2.5 text-xs text-rose-800" role="alert">{saveReceiptsError}</p>}
       <div className="type-choice">
         <label><input type="radio" name="type" value="expense" defaultChecked={!initial || initial.type === "expense"} /> Expense</label>
         <label><input type="radio" name="type" value="income" defaultChecked={initial?.type === "income"} /> Income</label>
@@ -236,33 +320,42 @@ export function TransactionForm({ accounts, categories, initial, onSaved, onCanc
       {/* Smart Form Assistance Bar */}
       <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 my-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <div>
-          <span className="text-xs font-semibold text-slate-900 dark:text-white block">Assistance de saisie</span>
-          <span className="text-[11px] text-slate-500 dark:text-slate-400">Numérisation optique ou suggestion automatique</span>
+          <span className="text-xs font-semibold text-slate-900 dark:text-white block">Smart form assistance</span>
+          <span className="text-[11px] text-slate-500 dark:text-slate-400">Scan one or more receipts or get an automatic suggestion</span>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={suggestCategory}
-            disabled={ai.busy}
+            disabled={ai.busy || isScanning || saveReceiptsBusy}
             className="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 text-slate-700 dark:text-slate-200 font-medium text-xs rounded-lg border border-slate-200 dark:border-slate-700 transition cursor-pointer disabled:opacity-50"
           >
-            {ai.busy ? "Analyse..." : "Suggérer catégorie"}
+            {ai.busy ? "Analyzing…" : "Suggest category"}
           </button>
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            disabled={ai.busy}
+            disabled={ai.busy || isScanning || saveReceiptsBusy}
             className="px-3.5 py-1.5 bg-[#0e2422] hover:bg-[#153430] text-white font-semibold text-xs rounded-lg transition cursor-pointer disabled:opacity-50"
           >
-            {ai.busy ? "Numérisation..." : "Numériser un reçu (OCR)"}
+            {isScanning ? "Scanning…" : "Choose receipt photos"}
           </button>
-          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(e) => scanReceipt(e.target.files?.[0])} />
+          <button type="button" onClick={() => setCameraOpen(true)} disabled={isScanning || saveReceiptsBusy || cameraOpen} className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-800 text-xs font-semibold hover:bg-slate-100 disabled:opacity-50">
+            {cameraOpen ? "Camera open" : "Use camera"}
+          </button>
+          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={(e) => void scanReceipts(Array.from(e.target.files ?? []))} />
         </div>
       </div>
-      {scannedInfo && (
-        <p className="p-2.5 bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs rounded-xl font-medium my-1">
-          {scannedInfo}
-        </p>
+      {cameraOpen && (
+        <CameraCapture
+          busy={isScanning}
+          captureLabel="Capture and scan receipt"
+          onClose={() => setCameraOpen(false)}
+          onCapture={(file) => {
+            setCameraOpen(false);
+            void scanReceipts([file]);
+          }}
+        />
       )}
       <AiNotice />
       <FormError message={error || ai.error} />
@@ -438,7 +531,12 @@ export function ListingForm({ initial, onSaved, onCancel }: FormProps<Listing>) 
     setPhotoError("");
     const file = files?.[0];
     if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
+      setPhotoError("Choose a JPEG, PNG, WebP or GIF photo.");
+      return;
+    }
     if (file.size > 400 * 1024) return setPhotoError("Choose a photo under 400 KB");
+    if (photos.length >= 5) return setPhotoError("You can add up to 5 photos.");
     try {
       const url = await readAsDataUrl(file);
       setPhotos((p) => [...p, url].slice(0, 5));
@@ -486,7 +584,7 @@ export function ListingForm({ initial, onSaved, onCancel }: FormProps<Listing>) 
       <div className="my-3 p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-            Aide à la publication
+            Listing help
           </span>
           <span className="text-[10px] text-slate-400">Assistant Pennywise</span>
         </div>
@@ -497,7 +595,7 @@ export function ListingForm({ initial, onSaved, onCancel }: FormProps<Listing>) 
             disabled={ai.busy}
             className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 transition cursor-pointer"
           >
-            {ai.busy ? "Estimation..." : "Estimer le prix conseillé"}
+            {ai.busy ? "Estimating…" : "Suggest a price"}
           </button>
           <button
             type="button"
@@ -505,7 +603,7 @@ export function ListingForm({ initial, onSaved, onCancel }: FormProps<Listing>) 
             disabled={ai.busy}
             className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 transition cursor-pointer"
           >
-            {ai.busy ? "Rédaction..." : "Générer la description"}
+            {ai.busy ? "Writing…" : "Write a description"}
           </button>
         </div>
         {priceNote && (
@@ -517,16 +615,21 @@ export function ListingForm({ initial, onSaved, onCancel }: FormProps<Listing>) 
       <label>Description<textarea required name="description" maxLength={2000} defaultValue={initial?.description} placeholder="Describe the item honestly" /></label>
       <AiNotice />
       <div className="photo-picker">
-        <span>Photos (up to 5)</span>
+        <span>Photos ({photos.length}/5)</span>
         <div className="photo-row">
           {photos.map((src, i) => (
-            <button type="button" key={i} className="photo-thumb" aria-label="Remove photo" onClick={() => setPhotos(photos.filter((_, j) => j !== i))}>
+            <button type="button" key={i} className="photo-thumb" aria-label={`Remove photo ${i + 1}`} onClick={() => setPhotos(photos.filter((_, j) => j !== i))}>
               <img src={src} alt="" />
+              <span aria-hidden="true">×</span>
             </button>
           ))}
-          {photos.length < 5 && <label className="photo-add"><span aria-hidden="true">+</span> Add<input type="file" accept="image/*" onChange={(e) => addPhoto(e.target.files)} /></label>}
+          {photos.length < 5 && <label className="photo-add">
+            <span aria-hidden="true">+</span>
+            <span>Add photo</span>
+            <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" aria-label="Add a listing photo" onChange={(e) => { void addPhoto(e.target.files); e.currentTarget.value = ""; }} />
+          </label>}
         </div>
-        {photoError && <p className="auth-error">{photoError}</p>}
+        {photoError && <p className="auth-error" role="alert">{photoError}</p>}
       </div>
       <FormError message={error || ai.error} />
       <Actions busy={busy} onCancel={onCancel} label={initial ? "Save listing" : "Publish listing"} />
@@ -609,4 +712,3 @@ export function PasswordForm({ onSaved, onCancel }: { onSaved: () => void; onCan
     </form>
   );
 }
-

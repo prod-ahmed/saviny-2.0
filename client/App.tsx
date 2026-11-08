@@ -73,10 +73,13 @@ export default function App() {
   const [showTour, setShowTour] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState(0);
+  const closeTour = useCallback(() => setShowTour(false), []);
 
   useEffect(() => {
-    if (session.user && !localStorage.getItem("pennywise_tour_seen")) {
-      const timer = setTimeout(() => setShowTour(true), 700);
+    if (!session.user) return;
+    const key = `pennywise_tour_completed_${session.user.id}`;
+    if (!localStorage.getItem(key)) {
+      const timer = setTimeout(() => setShowTour(true), 600);
       return () => clearTimeout(timer);
     }
   }, [session.user]);
@@ -190,7 +193,7 @@ export default function App() {
         <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
           <div className="brand">
             <button className="brand-home" aria-label="Go to dashboard" onClick={() => navigate("/dashboard")} />
-            <img src="/assets/pennywise-logo.png" alt="Pennywise" className="rounded-full shadow-md border-2 border-emerald-400 bg-white object-cover" />
+            <img src="/assets/pennywise-logo.png" alt="Pennywise" />
             <div><strong>Pennywise</strong><span>Smart Financial Companion</span></div>
             <button className="sidebar-close" aria-label="Close menu" onClick={() => setMenuOpen(false)}><Icon name="close" /></button>
           </div>
@@ -205,12 +208,6 @@ export default function App() {
             ))}
           </nav>
           <div className="sidebar-footer">
-            <div className="help-card bg-white/5 border border-white/10 p-3 rounded-xl">
-              <span className="text-emerald-400"><Icon name="sparkle" size={16} /></span>
-              <strong>Guide Pennywise</strong>
-              <p>Découvrez les fonctionnalités clés et le Coach Penny.</p>
-              <button onClick={() => setShowTour(true)}>Ouvrir le guide <Icon name="arrow" size={14} /></button>
-            </div>
             <button className="logout" onClick={() => setLogoutOpen(true)}><Icon name="logout" /> Log out</button>
             <p>© 2025 Pennywise</p>
           </div>
@@ -225,15 +222,6 @@ export default function App() {
               <div><h1>{active}</h1><p>Your financial life, beautifully organized.</p></div>
             </div>
             <div className="topbar-actions">
-              <button
-                type="button"
-                onClick={() => setShowTour(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition cursor-pointer"
-                title="Ouvrir le guide d'utilisation"
-              >
-                <Icon name="sparkle" size={14} />
-                <span className="hidden sm:inline">Guide &amp; Démo</span>
-              </button>
               <span className="online"><i /> {online ? "Online" : "Offline"}</span>
               <span className="date"><Icon name="calendar" size={17} />{currentDate}</span>
               <div className="global-search">
@@ -321,18 +309,17 @@ export default function App() {
         <SmartCoach currency={session.user?.currency ?? "USD"} />
 
         <OnboardingDemo
+          key={session.user?.id}
           isOpen={showTour}
-          onClose={() => setShowTour(false)}
-          onNavigate={(path) => {
-            setShowTour(false);
-            navigate(path);
-          }}
+          onClose={closeTour}
+          userId={session.user?.id}
+          onNavigate={navigate}
         />
 
         {logoutOpen && (
           <Confirm
-            title="Quitter Pennywise ?"
-            text="Vous devrez vous reconnecter pour accéder à vos finances et à votre Coach IA."
+            title="Log out of Pennywise?"
+            text="You’ll need to sign in again to access your finances and Penny AI Coach."
             confirmLabel="Log out"
             busy={busy}
             onCancel={() => setLogoutOpen(false)}
@@ -343,4 +330,3 @@ export default function App() {
     </SessionContext.Provider>
   );
 }
-
